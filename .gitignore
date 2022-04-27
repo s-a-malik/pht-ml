@@ -135,3 +135,9 @@ dmypy.json
 # wandb
 .wandb/
 
+# folders
+data/
+results/
+
+# out files
+*.out
