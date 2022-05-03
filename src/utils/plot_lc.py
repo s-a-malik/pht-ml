@@ -1,7 +1,6 @@
-"""synthetic_lc.py
-Generate synthetic light curves.
+"""plot_lc.py
 Most code is adapted from Nora Eisner
-NOTE 27/04/22: currently this just plots existing light curves. 
+NOTE 27/04/22: Plots light curves given the file
 """
 
 from argparse import ArgumentParser
