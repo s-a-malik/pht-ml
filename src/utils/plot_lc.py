@@ -31,7 +31,7 @@ def rebin(arr, new_shape):
     return arr.reshape(shape).mean(-1).mean(1)
 
 
-def process_lc(lcfile, args):
+def plot_lc(lcfile, binfac):
     """
     Function to plot the TESS LCs.
     Uses the PDCSAP flux - processed by the TESS pipeline to have some of the systematics removed.
@@ -39,6 +39,7 @@ def process_lc(lcfile, args):
     Input
     ------
     lcfile : path to the fits file.
+    binfac : binning factor.
 
     Output
     ------
@@ -66,11 +67,11 @@ def process_lc(lcfile, args):
 
         ## bin data
         N = len(t)
-        n = int(np.floor(N / args.binfac) * args.binfac)
+        n = int(np.floor(N / binfac) * binfac)
         X = np.zeros((2, n))
         X[0, :] = t[:n]
         X[1, :] = f02[:n]
-        Xb = rebin(X, (2, int(n / args.binfac)))
+        Xb = rebin(X, (2, int(n / binfac)))
         time_binned = Xb[0]
         flux_binned = Xb[1]
 
@@ -90,7 +91,7 @@ def process_lc(lcfile, args):
 
         l = q > 0
         l2 = q <= 0  # can also plot the removed data points if you care about that
-
+        
         t0 = t[0]  # make the time start at 0 (so that the timeline always runs from 0 to 27.8 days)
         t -= t0
 
@@ -116,32 +117,41 @@ def process_lc(lcfile, args):
     plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
 
     ## plot the binned and unbinned LC
+    # ax.plot(
+    #     t[l2],
+    #     f2[l2],
+    #     color="royalblue",
+    #     marker="o",
+    #     markersize=1,
+    #     lw=0,
+    #     label="unbinned",
+    # )
     ax.plot(
-        t[l2],
-        f2[l2],
-        color="royalblue",
+        t,
+        f2,
+        color="darkorange",
         marker="o",
         markersize=1,
         lw=0,
-        label="unbinned",
+        label="no quality filter",
     )
     # ax.plot(t[l2], f1[l2], color = 'darkorange', marker = 'o', markersize=1, lw = 0, label = 'unprocessed')
-    ax.plot(
-        time_binned,
-        flux_binned,
-        color="white",
-        marker="o",
-        markersize=2,
-        lw=0,
-        label="binned",
-    )
+    # ax.plot(
+    #     time_binned,
+    #     flux_binned,
+    #     color="white",
+    #     marker="o",
+    #     markersize=2,
+    #     lw=0,
+    #     label="binned",
+    # )
 
     ## define that length on the x axis - I don't want it to display the 0 point
-    delta_flux = np.nanmax(f2[l2]) - np.nanmin(f2[l2])
+    # delta_flux = np.nanmax(f2[l2]) - np.nanmin(f2[l2])
 
-    ## set the y lim.
-    percent_change = delta_flux * 0.1
-    ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
+    # ## set the y lim.
+    # percent_change = delta_flux * 0.1
+    # ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
 
     ## label the axis.
     ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
@@ -210,10 +220,11 @@ if __name__ == "__main__":
     seed_num = 5
 
     args = ap.parse_args()
+    binfac = args.binfac
 
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector1/light_curves/two_min/tess2018206045859-s0001-0000000008195886-0120-s_lc.fits"
-    lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector2/light_curves/two_min/tess2018234235059-s0002-0000000002733208-0121-s_lc.fits"
-    process_lc(lc_file, args)
+    lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters/Rel10/Sector10/light_curves/two_min/tess2019085135100-s0010-0000000001627611-0140-s_lc.fit"
+    plot_lc(lc_file, binfac)
 
     # FOR GLAM
     # eclipsing binary dataset

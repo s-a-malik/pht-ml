@@ -26,13 +26,14 @@ def parse_args():
                         type=str,
                         default="",
                         help="File containing list of light curve file paths.")
-    parser.add_argument("--out-dir",
+    parser.add_argument("--log-dir",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/code/pht-ml/results/",
-                        help="Results directory.")
-    parser.add_argument("--synthetic",
-                        action="store_true",
-                        help="Augment with synthetic data.")
+                        default="/mnt/zfsusers/shreshth/pht_project/code/pht-ml/",
+                        help="Root for results/output.")
+    parser.add_argument("--synthetic-prop",
+                        type=float,
+                        default=0.0,
+                        help="Augment with synthetic data, proportion of data to be synthetic.")
     
 
                 
@@ -68,7 +69,10 @@ def parse_args():
                         type=str,
                         default="pht-ml",
                         help="wandb project name")
-    
+    parser.add_argument("--experiment-name",
+                        type=str,
+                        default="",
+                        help="wandb experiment name")
 
 
 
