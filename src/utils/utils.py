@@ -6,6 +6,7 @@ import shutil
 
 import wandb
 
+import torch
 
 from models import nets
 
@@ -104,8 +105,10 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     - checkpoint_dict (dict): dict containing all model state info, to pickle
     - is_best (bool): whether this checkpoint is the best seen so far.
     """
-    checkpoint_file = os.path.join(wandb.run.dir, "ckpt.pth.tar")
-    best_file = os.path.join(wandb.run.dir, "best.pth.tar")
+    # files for checkpoints
+    scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
+    checkpoint_file = os.path.join(scratch_dir, "acq_model_ckpt.pth.tar")
+    best_file = os.path.join(scratch_dir, "acq_model_best.pth.tar")  
     torch.save(checkpoint_dict, checkpoint_file)
 
     if is_best:

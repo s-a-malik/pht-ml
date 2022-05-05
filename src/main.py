@@ -12,9 +12,9 @@ import pandas as pd
 import torch
 
 from utils import utils
-from utils.train import training_run, test_run
 from utils.parser import parse_args
 from utils.data import get_data_loaders
+from models.train import training_run, evaluate
 
 def main(args):
 
@@ -36,7 +36,7 @@ def main(args):
                      project=args.wandb_project,
                      group=args.experiment_name,
                      job_type=job_type,
-                     settings=wandb.Settings(start_method="fork")   # this is to prevent InitStartError
+                     settings=wandb.Settings(start_method="fork"),   # this is to prevent InitStartError
                      save_code=True)
     wandb.config.update(args)
 
@@ -68,22 +68,32 @@ def main(args):
                                                  checkpoint_file.name)
 
     if not args.evaluate:
-        # files for checkpoints
-        scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
-        checkpoint_file = os.path.join(scratch_dir, "acq_model_ckpt.pth.tar")
-        best_file = os.path.join(scratch_dir, "acq_model_best.pth.tar")  
     
         # train
-        # model = training_run(
+        model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
 
     
     else:
         # load model
-        model, optimizer = load_checkpoint(model, optimizer, args.device, checkpoint_file):
+        model, optimizer = utils.load_checkpoint(model, optimizer, args.device, checkpoint_file)
 
+        # evaluate on test set
+        with torch.no_grad():
+            test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
 
-    # evaluate on test set
-    test_loss, test_acc = test_run(model, test_loader)
+        wandb.log({
+            "test_loss": test_loss,
+            "test_acc": test_acc,
+            "test_f1": test_f1,
+            "test_prec": test_prec,
+            "test_rec": test_rec,
+            "test_auc": test_auc,
+            "test_total": test_total,
+            "test_tics": test_tics,
+            "test_secs": test_secs,
+            "test_pred": test_pred,
+            "test_targets": test_targets
+            })
 
 
     # finish

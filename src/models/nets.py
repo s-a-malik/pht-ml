@@ -34,7 +34,7 @@ import torch.nn.functional as F
 class SimpleNetwork(nn.Module):
     """Generic fully connected MLP with adjustable depth.
     """
-    def __init__(self, input_dim, hid_dims, output_dim, non_linearity="ReLU", dropout=0.0):
+    def __init__(self, input_dim, hid_dims=[128, 64], output_dim=1, non_linearity="ReLU", dropout=0.0):
         """Params:
         - input_dim (int): input dimension
         - hid_dims (List[int]): list of hidden layer dimensions
@@ -50,7 +50,7 @@ class SimpleNetwork(nn.Module):
         self.fcs = nn.ModuleList([nn.Linear(dims[i], dims[i+1])
                                   for i in range(len(dims)-1)])
        
-       if non_linearity == "ReLU":
+        if non_linearity == "ReLU":
             self.act = nn.ReLU()
         elif non_linearity == "tanh":
             self.act = nn.Tanh()
