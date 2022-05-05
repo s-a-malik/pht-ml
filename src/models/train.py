@@ -34,12 +34,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
         - test_tics: list of tic_ids of the test batch
         - test_secs: list of sectors of the test batch
     """
-    # avg_acc = utils.AverageMeter()
-    # avg_f1 = utils.AverageMeter()
-    # avg_prec = utils.AverageMeter()
-    # avg_rec = utils.AverageMeter()
     avg_loss = utils.AverageMeter()
-    # avg_auc = utils.AverageMeter()
     targets = []
     probs = []
     preds = []

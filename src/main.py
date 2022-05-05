@@ -68,11 +68,8 @@ def main(args):
                                                  checkpoint_file.name)
 
     if not args.evaluate:
-    
         # train
         model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
-
-    
     else:
         # load model
         model, optimizer = utils.load_checkpoint(model, optimizer, args.device, checkpoint_file)
