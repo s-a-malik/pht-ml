@@ -147,11 +147,11 @@ def plot_lc(lcfile, binfac):
     # )
 
     ## define that length on the x axis - I don't want it to display the 0 point
-    # delta_flux = np.nanmax(f2[l2]) - np.nanmin(f2[l2])
+    delta_flux = np.nanmax(f2[l2]) - np.nanmin(f2[l2])
 
-    # ## set the y lim.
-    # percent_change = delta_flux * 0.1
-    # ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
+    ## set the y lim.
+    percent_change = delta_flux * 0.1
+    ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
 
     ## label the axis.
     ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
