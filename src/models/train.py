@@ -62,7 +62,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             logits = model(x)
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).float()
-            y_target = (y > 0.5).float()
+            y_bin = (y > 0.5).float()
             print(probs.shape)
             print(probs)
             print(preds)
@@ -80,9 +80,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             
             probs = probs.detach().cpu().numpy()
             preds = preds.detach().cpu().numpy()
-            y_target = y_target.detach().cpu().numpy()
+            y_bin = y_bin.detach().cpu().numpy()
             # collect the model outputs
-            targets += y_target.tolist()
+            targets += y_bin.tolist()
+            targets_bin += y_bin.tolist()
             probs += probs.tolist()
             preds += preds.tolist()
             tics += tic.tolist()
@@ -91,9 +92,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
 
             t.update()
 
-    acc = accuracy_score(targets, preds)
-    prec, rec, f1, _ = precision_recall_fscore_support(targets, preds)
-    auc = roc_auc_score(targets, probs)
+    acc = accuracy_score(targets_bin, preds)
+    prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds)
+    auc = roc_auc_score(targets_bin, probs)
 
     if task == "test":
         return  avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, total
