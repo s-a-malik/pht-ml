@@ -107,8 +107,8 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     """
     # files for checkpoints
     scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
-    checkpoint_file = os.path.join(scratch_dir, "acq_model_ckpt.pth.tar")
-    best_file = os.path.join(scratch_dir, "acq_model_best.pth.tar")  
+    checkpoint_file = os.path.join(scratch_dir, "ckpt.pth.tar")
+    best_file = os.path.join(scratch_dir, "best.pth.tar")  
     torch.save(checkpoint_dict, checkpoint_file)
 
     if is_best:

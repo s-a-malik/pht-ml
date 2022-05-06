@@ -47,7 +47,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
         model.train()
     else:
         raise NameError("Only train, val or test is allowed as task")
-
+    
     with trange(len(data_loader)) as t:
         for i, batch in enumerate(data_loader):
             # unpack batch from dataloader
@@ -64,7 +64,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             print(y.shape)
 
             # compute loss on logits
-            loss = criterion(logits, y)
+            loss = criterion(logits, torch.unsqueeze(y, 1))
             avg_loss.update(loss.data.cpu().item(), x.size(0))     
             
             if task == "train":
@@ -92,13 +92,20 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     auc = roc_auc_score(targets_bin, probs)
 
     if task == "test":
-        return  avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, total
+        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, total
     else:
         return avg_loss.avg, acc, f1, prec, rec, auc
 
 
 def training_run(args, model, optimizer, criterion, train_loader, val_loader):
     """Run training loop
+    Params:
+    - args (argparse.Namespace): parsed command line arguments
+    - model (nn.Module): model to train
+    - optimizer (nn.optim): optimizer tied to model weights.
+    - criterion: loss function
+    - train_loader (torch.utils.data.DataLoader): training data loader
+    - val_loader (torch.utils.data.DataLoader): validation data loader
     Returns:
     - model (nn.Module): trained model
     """

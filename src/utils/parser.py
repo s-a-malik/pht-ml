@@ -20,11 +20,11 @@ def parse_args():
     # data config
     parser.add_argument("--lc-root-path",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/data/",
+                        default="/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters",
                         help="Root data directory for light curves")
     parser.add_argument("--labels-root-path",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters",
+                        default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels",
                         help="Root path for labels")
     parser.add_argument("--log-dir",
                         type=str,
@@ -52,7 +52,7 @@ def parse_args():
     parser.add_argument("--hid-dims",
                         type=int,
                         nargs="*",
-                        default=64,
+                        default=[64],
                         help="Hidden layer dimensions, takes multiple arguments")
     parser.add_argument("--activation",
                         type=str,

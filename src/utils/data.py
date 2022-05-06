@@ -98,6 +98,7 @@ class LCData(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.lc_file_list)
 
+
     # @functools.lru_cache(maxsize=None)  # Cache loaded structures
     def __getitem__(self, idx):
         start = time.time()
@@ -119,7 +120,7 @@ class LCData(torch.utils.data.Dataset):
         # print(self.labels_df.loc[(self.labels_df["TIC_ID"] == tic) & (self.labels_df["sector"] == sec), "maxdb"])
         y = self.labels_df.loc[(self.labels_df["TIC_ID"] == tic) & (self.labels_df["sector"] == sec), "maxdb"].values
         if len(y) == 1:
-            y = torch.tensor(y[0])
+            y = torch.tensor(y[0], dtype=torch.float)
         elif len(y) > 1:
             print(y, "more than one label for TIC: ", tic, " in sector: ", sec)
             y = None
@@ -132,7 +133,7 @@ class LCData(torch.utils.data.Dataset):
         end = time.time()
         # print("time to get data", end - start)
         # return tensors
-        return (torch.from_numpy(x), torch.tensor(tic), torch.tensor(sec)), y
+        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec)), y
 
     def _read_lc(self, lc_file):
         """Read light curve file
@@ -184,15 +185,15 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
 
     dataset = LCData(data_root_path, labels_root_path)
 
-    indices = list(range(len(dataset)))
+    indices = [i for i in range(len(dataset))]
     train_idx, test_idx = split(indices, random_state=seed, test_size=test_size)
-    train_set = torch.utils.data.Subset(dataset, train_idx)
+    train_and_val_set = torch.utils.data.Subset(dataset, train_idx)
     test_set = torch.utils.data.Subset(dataset, test_idx)
 
-    indices = [i for i in range(len(train_set))]
+    indices = [i for i in range(len(train_and_val_set))]
     train_idx, val_idx = split(indices, random_state=seed, test_size=val_size/(1-test_size))
-    train_set = torch.utils.data.Subset(train_set, train_idx)
-    val_set = torch.utils.data.Subset(train_set, val_idx)
+    train_set = torch.utils.data.Subset(train_and_val_set, train_idx)
+    val_set = torch.utils.data.Subset(train_and_val_set, val_idx)
 
     print(f'Size of training set: {len(train_set)}')
     print(f'Size of val set: {len(val_set)}')
@@ -206,7 +207,7 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
                                                 collate_fn=collate_fn)
     val_dataloader = torch.utils.data.DataLoader(val_set,
                                                 batch_size=batch_size,
-                                                shuffle=True,
+                                                shuffle=False,
                                                 num_workers=num_workers,
                                                 pin_memory=pin_memory,
                                                 collate_fn=collate_fn)
@@ -218,15 +219,15 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
                                                 collate_fn=collate_fn)
 
     # for missing ones
-    full_dataloader = torch.utils.data.DataLoader(dataset,
-                                                batch_size=batch_size,
-                                                shuffle=False,
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
+    # full_dataloader = torch.utils.data.DataLoader(dataset,
+    #                                             batch_size=batch_size,
+    #                                             shuffle=False,
+    #                                             num_workers=num_workers,
+    #                                             pin_memory=pin_memory,
+    #                                             collate_fn=collate_fn)
 
-    # return train_dataloader, val_dataloader, test_dataloader
-    return full_dataloader
+    return train_dataloader, val_dataloader, test_dataloader
+    # return full_dataloader
 
 if __name__ == "__main__":
     
@@ -235,8 +236,8 @@ if __name__ == "__main__":
 
     # lc_data = LCData(LC_ROOT_PATH, LABELS_ROOT_PATH)
     # print(len(lc_data))
-    # train_dataloader, val_dataloader, test_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
-    train_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
+    train_dataloader, val_dataloader, test_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
+    # train_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
     with trange(len(train_dataloader)) as t:
         for i, (x, y) in enumerate(train_dataloader):
             # print(i, x, y)
