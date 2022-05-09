@@ -81,7 +81,7 @@ def main(args):
 
     # evaluate on test set
     with torch.no_grad():
-        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
+        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_sims, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
 
     wandb.log({
         "test_loss": test_loss,
@@ -93,6 +93,7 @@ def main(args):
         "test_total": test_total,
         "test_tics": test_tics,
         "test_secs": test_secs,
+        "test_sims": test_sims,
         "test_pred": test_pred,
         "test_targets": test_targets
         })

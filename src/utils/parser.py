@@ -20,7 +20,7 @@ def parse_args():
     # data config
     parser.add_argument("--lc-root-path",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters",
+                        default="/mnt/zfsusers/shreshth/pht_project/data/TESS",
                         help="Root data directory for light curves")
     parser.add_argument("--labels-root-path",
                         type=str,

@@ -41,6 +41,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     preds = []
     tics = []
     secs = []
+    sims = []
     total = 0
     if task in ["val", "test"]:
         model.eval()
@@ -52,7 +53,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     with trange(len(data_loader)) as t:
         for i, batch in enumerate(data_loader):
             # unpack batch from dataloader
-            (x, tic, sec), y = batch
+            (x, tic, sec, sim), y = batch
             x = x.to(device)
             y = y.to(device)
             logits = model(x)
@@ -81,6 +82,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             preds += np.squeeze(pred).tolist()
             tics += tic.tolist()
             secs += sec.tolist()
+            sims += sim.tolist()
             total += logits.size(0)
             # print("targets", y)
             # print("targets_bin", y_bin)
@@ -98,7 +100,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     # TODO for test set, should get more granulater metrics - probs can do this analysis afterwards from the raw results. 
 
     if task == "test":
-        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, total
+        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, sims, total
     else:
         return avg_loss.avg, acc, f1, prec, rec, auc
 

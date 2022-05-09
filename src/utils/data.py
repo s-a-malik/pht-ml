@@ -115,7 +115,7 @@ class LCData(torch.utils.data.Dataset):
         self.lc_file_list = []
         for sector in SECTORS:
             # print(f"sector: {sector}")
-            new_files = glob.glob(os.path.join(lc_root_path, f"Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
+            new_files = glob.glob(os.path.join(lc_root_path, f"planethunters/Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
 
@@ -141,9 +141,6 @@ class LCData(torch.utils.data.Dataset):
         # check how many non-zero labels
         print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
         print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
-
-
-        # TODO add simulated data
 
 
     def __len__(self):
@@ -182,7 +179,7 @@ class LCData(torch.utils.data.Dataset):
         # end = time.time()
         # print("time to get data", end - start)
         # return tensors
-        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec)), y
+        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), False), y
 
 
 # TODO function to get file from tic id - needed for specific lookup 
@@ -207,7 +204,7 @@ class LCData(torch.utils.data.Dataset):
 class SimulatedData(torch.utils.data.Dataset):
     """Simulated LC dataset for training
     """
-        def __init__(self, lc_root_path, labels_root_path, transform=training_transform):
+    def __init__(self, lc_root_path, labels_root_path, transform=training_transform):
         super(LCData, self).__init__()
 
         self.lc_root_path = lc_root_path
@@ -216,10 +213,10 @@ class SimulatedData(torch.utils.data.Dataset):
         self.transform = transform 
 
         # get all the simulated data files
-        labels_df = pd.DataFrame()
+        self.labels_df = pd.DataFrame()
         for sector in SECTORS:
-            labels_df = pd.concat([labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
-        self.simulated_transits_df = labels_df[labels_df["subject_type"]]
+            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
+        self.simulated_transits_df = self.labels_df[self.labels_df["subject_type"]]
         print("num. simulated transits labels: ", len(self.simulated_transits_df))
         print(self.simulated_transits_df.head())
 
@@ -235,39 +232,44 @@ class SimulatedData(torch.utils.data.Dataset):
     # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
     @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
-        
-        print(self.simulated_transits_df[idx])
-        y = self.simulated_transits_df[idx]["maxdb"]
-        print(y)
+        this_simulated_transit = self.simulated_transits_df.iloc[idx]
+        print(this_simulated_transit)
+        y = this_simulated_transit["maxdb"]
+        tic_base = this_simulated_transit["TIC_LC"]
+        tic_inj = this_simulated_transit["TIC_inf"]
+        snr = this_simulated_transit["SNR"]
+        print(y, tic_base, tic_inj, snr)
 
-        # reconstruct the light curve files from these labels
+        # reconstruct the light curve files
+        # find sector of the base TIC
+        base_tic_sector = self.labels_df.loc[self.labels_df["TIC_ID"] == tic_base, "sector"].values[0]
 
-
-        # start = time.time()
-        # get lc file
-        # lc_file = self.lc_file_list[idx]
-
-        # read lc file
-        x, tic, sec = self._read_lc(lc_file)
+        # read base lc file
+        base_lc = glob("{}/planethunters/Rel{:d}/Sector{}/**/*{:d}.fit*".format(self.lc_root_path, base_tic_sector, base_tic_sector, tic_base), recursive=True)
+        print(base_lc)
+        base_lc = base_lc[0]
+        x, tic, sec = _read_lc(base_lc)
         # if corrupt return None and skip c.f. collate_fn
         if x is None:
             return (x, tic, sec), None
 
+        # read injected lc file
+        injected_pl = glob("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
+        print(injected_pl)
+        inj_pl = np.genfromtxt(str(injected_pl[0]))
+        print(f"injected shape {inj_pl.shape}")
+
+        # inject planet
+        if len(inj_pl)>len(x):
+            inj_pl = inj_pl[:len(x)]
+        x = inj_pl * x
+
+        # transform
         if self.transform:
             x = self.transform(x)
 
-        # get label for this lc file (if exists) match sector 
-        if len(y) == 1:
-            y = torch.tensor(y[0], dtype=torch.float)
-        elif len(y) > 1:
-            # print(y, "more than one label for TIC: ", tic, " in sector: ", sec)
-            y = None
-            # self.no_label_tics.append((tic, sec))
-        else:
-            y = None
-
         # return tensors
-        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec)), y
+        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), True), y
 
 
 ### UTILS
@@ -368,7 +370,7 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
 
 if __name__ == "__main__":
     
-    LC_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters"
+    LC_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/TESS"
     LABELS_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/pht_labels"
 
     # lc_data = LCData(LC_ROOT_PATH, LABELS_ROOT_PATH)
