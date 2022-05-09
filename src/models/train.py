@@ -36,6 +36,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     """
     avg_loss = utils.AverageMeter()
     targets = []
+    targets_bin = []
     probs = []
     preds = []
     tics = []
@@ -55,13 +56,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             x = x.to(device)
             y = y.to(device)
             logits = model(x)
-            probs = torch.sigmoid(logits)
-            preds = (probs > 0.5).float()
+            prob = torch.sigmoid(logits)
+            # preds = np.where(probs > 0.5, 1, 0)
+            pred = (prob > 0.4).float()
             y_bin = (y > 0.5).float()
-            print(probs.shape)
-            print(probs)
-            print(preds)
-            print(y.shape)
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
@@ -73,23 +71,31 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
                 loss.backward()
                 optimizer.step()
             
-            probs = probs.detach().cpu().numpy()
-            preds = preds.detach().cpu().numpy()
+            prob = prob.detach().cpu().numpy()
+            pred = pred.detach().cpu().numpy()
             y_bin = y_bin.detach().cpu().numpy()
             # collect the model outputs
-            targets += y_bin.tolist()
+            targets += y.tolist()
             targets_bin += y_bin.tolist()
-            probs += probs.tolist()
-            preds += preds.tolist()
+            probs += np.squeeze(prob).tolist()
+            preds += np.squeeze(pred).tolist()
             tics += tic.tolist()
             secs += sec.tolist()
             total += logits.size(0)
+            # print("targets", y)
+            # print("targets_bin", y_bin)
+            # print("probs", prob)
+            # print("preds", pred)
+            # print("tics", tic)
+            # print("secs", sec)
+            # print("total", total)
 
             t.update()
 
     acc = accuracy_score(targets_bin, preds)
-    prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds)
+    prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds, average="binary")
     auc = roc_auc_score(targets_bin, probs)
+    # TODO for test set, should get more granulater metrics - probs can do this analysis afterwards from the raw results. 
 
     if task == "test":
         return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, total
