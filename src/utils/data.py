@@ -6,7 +6,7 @@ import os
 from ast import literal_eval
 import csv
 import time
-import glob
+from glob import glob
 import functools
 
 
@@ -87,11 +87,75 @@ class ImputeNans(object):
     # def __init__(self, period, duration, amplitude, phase):
 
 
+class BinData(object):
+    """Bin light curves
+    """
+
+    def __init__(self, bin_factor=1):
+        self.bin_factor = bin_factor
+    
+    def __call__(self, x):
+        ## bin data
+        N = len(x)
+        n = int(np.floor(N / self.bin_factor) * self.bin_factor)
+        X = np.zeros((1, n))
+        X[0, :] = x[:n]
+        Xb = rebin(X, (1, int(n / self.bin_factor)))
+        x_binned = Xb[0]
+        return x_binned
+
+    def _rebin(self, arr, new_shape):
+    
+        shape = (
+            new_shape[0],
+            arr.shape[0] // new_shape[0],
+            new_shape[1],
+            arr.shape[1] // new_shape[1],
+        )
+        return arr.reshape(shape).mean(-1).mean(1)
+
+
+class RandomDelete(object):
+    """Randomly delete a continuous section of the data
+    """
+    def __init__(self, prob=0.0, delete_fraction=0.1):
+        self.prob = prob
+        self.delete_fraction = delete_fraction
+
+    def __call__(self, x):
+
+        if np.random.rand() < self.prob:
+            N = len(x)
+            n = int(np.floor(N * self.delete_fraction))
+            start = np.random.randint(0, N - n)
+            x[np.arange(start, start + n)] = 0.0
+
+        return x
+
+class RandomPermute(object):
+    """Randomly rearrange part of the data
+    """
+    def __init__(self, prob, permute_fraction=0.1):
+        self.prob = prob
+        self.permute_fraction = permute_fraction
+
+    def __call__(self, x):
+            
+        if np.random.rand() < self.prob:
+            N = len(x)
+            n = int(np.floor(N * self.permute_fraction))
+            start = np.random.randint(0, N - n)
+
+
+
+
 # composed transform
 training_transform = transforms.Compose([
     NormaliseFlux(),
+    RandomDelete(prob=0.0, delete_fraction=0.1),
+    BinData(bin_factor=3),  # bin before imputing
     ImputeNans(method="zero"),
-    Cutoff()
+    Cutoff(),
 ])
 
 # TODO test tranforms
@@ -115,7 +179,7 @@ class LCData(torch.utils.data.Dataset):
         self.lc_file_list = []
         for sector in SECTORS:
             # print(f"sector: {sector}")
-            new_files = glob.glob(os.path.join(lc_root_path, f"planethunters/Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
+            new_files = glob(os.path.join(lc_root_path, f"planethunters/Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
 
@@ -150,7 +214,6 @@ class LCData(torch.utils.data.Dataset):
     # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
     @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
-        # start = time.time()
         # get lc file
         lc_file = self.lc_file_list[idx]
 
@@ -158,7 +221,7 @@ class LCData(torch.utils.data.Dataset):
         x, tic, sec = _read_lc(lc_file)
         # if corrupt return None and skip c.f. collate_fn
         if x is None:
-            return (x, tic, sec), None
+            return (x, tic, sec, False), None
 
         if self.transform:
             x = self.transform(x)
@@ -176,9 +239,6 @@ class LCData(torch.utils.data.Dataset):
             y = None
             # self.no_label_tics.append((tic, sec))
 
-        # end = time.time()
-        # print("time to get data", end - start)
-        # return tensors
         return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), False), y
 
 
@@ -205,68 +265,70 @@ class SimulatedData(torch.utils.data.Dataset):
     """Simulated LC dataset for training
     """
     def __init__(self, lc_root_path, labels_root_path, transform=training_transform):
-        super(LCData, self).__init__()
+        super(SimulatedData, self).__init__()
 
         self.lc_root_path = lc_root_path
         self.labels_root_path = labels_root_path
         # TODO do this differently for testing and training (e.g. shuffling stuff)
         self.transform = transform 
 
-        # get all the simulated data files
+        # get the labels and planet info
         self.labels_df = pd.DataFrame()
         for sector in SECTORS:
             self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
         self.simulated_transits_df = self.labels_df[self.labels_df["subject_type"]]
         print("num. simulated transits labels: ", len(self.simulated_transits_df))
-        print(self.simulated_transits_df.head())
-
-        # check how many non-zero labels
-        print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
-        print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
-
+        # print(self.simulated_transits_df.head())
 
     def __len__(self):
-        return len(self.lc_file_list)
-
+        return len(self.simulated_transits_df)
 
     # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
     @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
+        """TODO also return the snr to make a differential loss function
+        """
         this_simulated_transit = self.simulated_transits_df.iloc[idx]
-        print(this_simulated_transit)
+        # print(this_simulated_transit)
         y = this_simulated_transit["maxdb"]
-        tic_base = this_simulated_transit["TIC_LC"]
-        tic_inj = this_simulated_transit["TIC_inf"]
+        tic_base = int(this_simulated_transit["TIC_LC"])
+        tic_inj = int(this_simulated_transit["TIC_inj"])
         snr = this_simulated_transit["SNR"]
-        print(y, tic_base, tic_inj, snr)
-
-        # reconstruct the light curve files
-        # find sector of the base TIC
-        base_tic_sector = self.labels_df.loc[self.labels_df["TIC_ID"] == tic_base, "sector"].values[0]
+        base_tic_sector = this_simulated_transit["sector"]
+        # print(y, tic_base, tic_inj, snr, base_tic_sector)
 
         # read base lc file
-        base_lc = glob("{}/planethunters/Rel{:d}/Sector{}/**/*{:d}.fit*".format(self.lc_root_path, base_tic_sector, base_tic_sector, tic_base), recursive=True)
-        print(base_lc)
+        base_lc = glob("{}/planethunters/Rel*{:d}/Sector{}/**/*{:d}*.fit*".format(self.lc_root_path, base_tic_sector, base_tic_sector, tic_base), recursive=True)
+        # print(base_lc)
         base_lc = base_lc[0]
         x, tic, sec = _read_lc(base_lc)
         # if corrupt return None and skip c.f. collate_fn
         if x is None:
-            return (x, tic, sec), None
+            return (x, tic, sec, True), None
+
+        # debug plot
+        # plot_lc(x, save_path=f"./{tic}_{sec}_real.png")
 
         # read injected lc file
+        print("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
         injected_pl = glob("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
-        print(injected_pl)
+        # print(injected_pl)
         inj_pl = np.genfromtxt(str(injected_pl[0]))
-        print(f"injected shape {inj_pl.shape}")
+        # print(f"injected shape {inj_pl.shape}")
+
+        # ge
+        # plot_lc(inj_pl, save_path=f"./{tic_inj}_inj.png")
 
         # inject planet
         if len(inj_pl)>len(x):
             inj_pl = inj_pl[:len(x)]
         x = inj_pl * x
-
+        # print(x)
+        # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}.png")
         # transform
         if self.transform:
             x = self.transform(x)
+        # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}_transformed.png")
 
         # return tensors
         return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), True), y
@@ -287,6 +349,7 @@ def collate_fn(batch):
 
 def _read_lc(lc_file):
     """Read light curve file
+    TODO use the other data
     """
     # open the file in context manager - catching corrupt files
     try:
@@ -312,6 +375,48 @@ def _read_lc(lc_file):
     return f2, tic, sec
 
 
+def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
+    """Plot light curve for debugging
+    Params:
+    - x (np.array): light curve
+    """
+
+    # plot it
+    fig, ax = plt.subplots(figsize=(16, 5))
+    plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
+
+    ## plot the binned and unbinned LC
+    ax.plot(list(range(len(x))), x,
+        color="royalblue",
+        marker="o",
+        markersize=1,
+        lw=0,
+        label="unbinned",
+    )
+    ## label the axis.
+    ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
+
+    ## define tick marks/axis parameters
+    minorLocator = AutoMinorLocator()
+    ax.xaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", which="minor", colors="w", length=3, labelsize=13)
+
+    minorLocator = AutoMinorLocator()
+    ax.yaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+
+    ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
+    ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
+
+    # ax.set_xlabel("Time (days)", fontsize=10, color="white")
+
+    ax.set_facecolor("#03012d")
+
+    ## save the image
+    plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+
+
 def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed, batch_size, num_workers=0, pin_memory=False):
     """Get data loaders
     TODO pin_memory and num_workers sensibly
@@ -319,7 +424,11 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
 
-    dataset = LCData(data_root_path, labels_root_path)
+    real_dataset = LCData(data_root_path, labels_root_path)
+    sim_dataset = SimulatedData(data_root_path, labels_root_path)
+    dataset = torch.utils.data.ConcatDataset([real_dataset, sim_dataset])
+    print(f"dataset size {len(dataset)}: {len(real_dataset)} real, {len(sim_dataset)} simulated")
+
 
     indices = [i for i in range(len(dataset))]
     train_idx, test_idx = split(indices, random_state=seed, test_size=test_size)
@@ -374,59 +483,21 @@ if __name__ == "__main__":
     LABELS_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/pht_labels"
 
     # lc_data = LCData(LC_ROOT_PATH, LABELS_ROOT_PATH)
-    sim_data = SimulatedData(LC_ROOT_PATH, LABELS_ROOT_PATH)
-
+    # sim_data = SimulatedData(LC_ROOT_PATH, LABELS_ROOT_PATH)
+    # print(sim_data[0])
+    # print(sim_data[10])
 
     # print(len(lc_data))
-    # train_dataloader, val_dataloader, test_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
+    train_dataloader, val_dataloader, test_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
     # # train_dataloader = get_data_loaders(LC_ROOT_PATH, LABELS_ROOT_PATH, val_size=0.2, test_size=0.2, seed=0, batch_size=1024, num_workers=0, pin_memory=False)
-    # with trange(len(train_dataloader)) as t:
-    #     for i, (x, y) in enumerate(train_dataloader):
-    #         # print(i, x, y)
-    #         if i % 100 == 0:
-    #             print(i, x, y)
-    #             print(x[0].shape, y.shape)
-
-    #             # plot it
-    #             fig, ax = plt.subplots(figsize=(16, 5))
-    #             plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
-
-    #             ## plot the binned and unbinned LC
-    #             ax.plot(list(range(len(x[0][0]))), x[0][0],
-    #                 color="royalblue",
-    #                 marker="o",
-    #                 markersize=1,
-    #                 lw=0,
-    #                 label="unbinned",
-    #             )
-    #             ## label the axis.
-    #             ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
-
-    #             ## define tick marks/axis parameters
-
-    #             minorLocator = AutoMinorLocator()
-    #             ax.xaxis.set_minor_locator(minorLocator)
-    #             ax.tick_params(direction="in", which="minor", colors="w", length=3, labelsize=13)
-
-    #             minorLocator = AutoMinorLocator()
-    #             ax.yaxis.set_minor_locator(minorLocator)
-    #             ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
-    #             ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
-
-    #             ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
-    #             ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
-
-    #             ax.set_xlabel("Time (days)", fontsize=10, color="white")
-
-    #             # ax.set_axis_bgcolor("#03012d")  # depending on what version of Python you're using.
-    #             ax.set_facecolor("#03012d")
-
-    #             ## save the image
-    #             im_name = "./test_lc_dataloader_" + str(i) + ".png"
-    #             path = "/mnt/zfsusers/shreshth/pht_project/data/examples"
-    #             plt.savefig("%s/%s" % (path, im_name), format="png")
-                
-    #         t.update()
+    with trange(len(train_dataloader)) as t:
+        for i, (x, y) in enumerate(train_dataloader):
+            # print(i, x, y)
+            if i % 100 == 0:
+                print(i, x, y)
+                print(x[0].shape, y.shape)
+                plot_lc(x[0][0], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{i}.png")
+            t.update()
     
     # # save no label tics to file
     # print("no label tics: ", train_dataloader.dataset.no_label_tics)

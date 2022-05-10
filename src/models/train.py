@@ -189,7 +189,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
 
             # patience
             if (epoch - best_epoch > args.patience):
-                print("\nEarly stopping")
+                print("\nEarly stopping...")
                 break
     
     except KeyboardInterrupt:

@@ -44,6 +44,8 @@ def main(args):
     print(model)
     print(optimizer)
     print(criterion)
+
+    # TODO add data args to data loader call directly from argparse
     train_loader, val_loader, test_loader = get_data_loaders(
         data_root_path=args.lc_root_path,
         labels_root_path=args.labels_root_path,

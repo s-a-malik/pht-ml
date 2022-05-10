@@ -38,6 +38,22 @@ def parse_args():
                         type=int,
                         default=0,
                         help="number of data loading workers") 
+    parser.add_argument("--bin-factor",
+                        type=int,
+                        default=1,
+                        help="binning factor for light curves")
+    parser.add_argument("--aug-prob",
+                        type=float,
+                        default=0.0,
+                        help="Probability of augmenting data with random defects.")
+    parser.add_argument("--permute-fraction",
+                        type=float,
+                        default=0.0,
+                        help="Fraction of light curve to be randomly permuted.")
+    parser.add_argument("--delete-fraction",
+                        type=float,
+                        default=0.0,
+                        help="Fraction of light curve to be randomly deleted.")
 
                 
     # model config
