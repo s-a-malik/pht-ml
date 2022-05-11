@@ -25,13 +25,15 @@ import pandas as pd
 from sklearn.model_selection import train_test_split as split
 
 import astropy.io.fits as pf
+from astropy.table import Table
 
 
 # SECTORS = list(range(10, 39))
 # without 35 and 37
-# SECTORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 38]
+SECTORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 38]
 # SECTORS = [10, 11]
-SECTORS = [37]
+# SECTORS = [37]
+# SECTORS = [10, 11, 12, 13]
 SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length
 
 
@@ -81,10 +83,42 @@ class ImputeNans(object):
     # def __init__(self, period, duration, amplitude, phase):
 
 
-# class AddPlTransit(object):
-#     """Add random planetary transits to the light curves
-#     """
-    # def __init__(self, period, duration, amplitude, phase):
+class AddPlTransit(object):
+    """Add random planetary transits to the light curves
+    TODO decide good params for this
+    """
+    def __init__(self, lc_root_path, min_period, prob):
+        self.lc_root_path = lc_root_path
+        self.min_period = min_period
+        self.prob = prob
+
+        # simulated transit info
+        self.pl_table = Table.read(f"{lc_root_path}/ETE-6/injected/ete6_planet_data.txt", format='ascii',comment='#')
+        print(f"Loaded {len(self.pl_table)} simulated transits")
+        # get only the long transits
+        self.pl_table = self.pl_table[self.pl_table['col3'] > self.min_period]
+        print(f"Kept {len(self.pl_table)} transits with period > {self.min_period}")
+        # pl_depth = plt_tic['col10']  # transit depth
+        #     pl_dur = plt_tic['col9']     # transit duration
+        #     pl_per = plt_tic['col3']     # transit period
+# tics_inj = np.array(np.unique(pl['col1'].flatten()))
+#     tics_inj = np.random.choice(tics_inj, 1)[0]  # select one random tic 
+
+#     injected_pl = glob("/mnt/zfsusers/nora/kepler_share/kepler2/TESS/ETE-6/injected/Planets/Planets_*{:d}.txt".format(tics_inj))
+#     inj_pl = np.genfromtxt(str(injected_pl[0]))
+
+    def __call__(self, x):
+        
+        # add random planetary transits
+        if np.random.rand() < self.prob:
+            # choose a random planet transit
+
+            plt_tic = self.pl_table[(self.pl_table['col1'] == tic_inj)][0]  # transit tic
+            
+            # inject into the light curve
+
+            # TODO need to relabel the data as well 
+
 
 
 class BinData(object):
@@ -100,7 +134,7 @@ class BinData(object):
         n = int(np.floor(N / self.bin_factor) * self.bin_factor)
         X = np.zeros((1, n))
         X[0, :] = x[:n]
-        Xb = rebin(X, (1, int(n / self.bin_factor)))
+        Xb = self._rebin(X, (1, int(n / self.bin_factor)))
         x_binned = Xb[0]
         return x_binned
 
@@ -132,8 +166,8 @@ class RandomDelete(object):
 
         return x
 
-class RandomPermute(object):
-    """Randomly rearrange part of the data
+class RandomShift(object):
+    """Randomly swap a chunk of the data with another chunk
     """
     def __init__(self, prob, permute_fraction=0.1):
         self.prob = prob
@@ -144,18 +178,35 @@ class RandomPermute(object):
         if np.random.rand() < self.prob:
             N = len(x)
             n = int(np.floor(N * self.permute_fraction))
-            start = np.random.randint(0, N - n)
+            start1 = np.random.randint(0, N - n)
+            end1 = start1 + n
+            start2 = np.random.randint(0, N - n)
+            end2 = start2 + n
+            x[start1:end1], x[start2:end2] = x[start2:end2], x[start1:end1]
+
+        return x
 
 
+class MirrorFlip(object):
+    """Mirror flip the data
+    """
+    def __init__(self, prob):
+        self.prob = prob
+    
+    def __call__(self, x):
+        if np.random.rand() < self.prob:
+            x = np.flip(x, axis=0)
+        return x
 
 
 # composed transform
 training_transform = transforms.Compose([
     NormaliseFlux(),
     RandomDelete(prob=0.0, delete_fraction=0.1),
+    RandomShift(prob=0.0, permute_fraction=0.1),
     BinData(bin_factor=3),  # bin before imputing
     ImputeNans(method="zero"),
-    Cutoff(),
+    Cutoff(length=int(SHORTEST_LC/3))
 ])
 
 # TODO test tranforms
@@ -214,6 +265,14 @@ class LCData(torch.utils.data.Dataset):
     # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
     @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
+        """Returns:
+        - input (tuple)
+            - x (float): light curve
+            - tic (int): TIC
+            - sec (int): sector
+            - sim (bool): True if simulated data
+        - y (float): score
+        """
         # get lc file
         lc_file = self.lc_file_list[idx]
 
@@ -221,10 +280,11 @@ class LCData(torch.utils.data.Dataset):
         x, tic, sec = _read_lc(lc_file)
         # if corrupt return None and skip c.f. collate_fn
         if x is None:
-            return (x, tic, sec, False), None
+            return (None, None, None, False), None
 
         if self.transform:
             x = self.transform(x)
+        # print(x.shape)
 
         # get label for this lc file (if exists) match sector 
         y = self.labels_df.loc[(self.labels_df["TIC_ID"] == tic) & (self.labels_df["sector"] == sec), "maxdb"].values
@@ -238,6 +298,8 @@ class LCData(torch.utils.data.Dataset):
             # print(y, "label not found for TIC: ", tic, " in sector: ", sec)
             y = None
             # self.no_label_tics.append((tic, sec))
+
+        # print(x)
 
         return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), False), y
 
@@ -278,7 +340,10 @@ class SimulatedData(torch.utils.data.Dataset):
             self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
         self.simulated_transits_df = self.labels_df[self.labels_df["subject_type"]]
         print("num. simulated transits labels: ", len(self.simulated_transits_df))
-        # print(self.simulated_transits_df.head())
+
+        # simulated transit info
+        self.pl_table = Table.read(f"{lc_root_path}/ETE-6/injected/ete6_planet_data.txt", format='ascii',comment='#')
+
 
     def __len__(self):
         return len(self.simulated_transits_df)
@@ -287,10 +352,20 @@ class SimulatedData(torch.utils.data.Dataset):
     @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
         """TODO also return the snr to make a differential loss function
+        Returns:
+        - input (tuple)
+            - x (float): light curve
+            - tic (int): TIC
+            - sec (int): sector
+            - sim (bool): True if simulated data
+        - y (float): score
         """
+
         this_simulated_transit = self.simulated_transits_df.iloc[idx]
         # print(this_simulated_transit)
         y = this_simulated_transit["maxdb"]
+        y = torch.tensor(y, dtype=torch.float)
+
         tic_base = int(this_simulated_transit["TIC_LC"])
         tic_inj = int(this_simulated_transit["TIC_inj"])
         snr = this_simulated_transit["SNR"]
@@ -304,31 +379,38 @@ class SimulatedData(torch.utils.data.Dataset):
         x, tic, sec = _read_lc(base_lc)
         # if corrupt return None and skip c.f. collate_fn
         if x is None:
-            return (x, tic, sec, True), None
+            return (None, None, None, True), None
 
         # debug plot
         # plot_lc(x, save_path=f"./{tic}_{sec}_real.png")
 
         # read injected lc file
-        print("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
         injected_pl = glob("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
         # print(injected_pl)
         inj_pl = np.genfromtxt(str(injected_pl[0]))
         # print(f"injected shape {inj_pl.shape}")
 
-        # ge
         # plot_lc(inj_pl, save_path=f"./{tic_inj}_inj.png")
 
         # inject planet
         if len(inj_pl)>len(x):
             inj_pl = inj_pl[:len(x)]
         x = inj_pl * x
-        # print(x)
+
         # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}.png")
+
         # transform
         if self.transform:
             x = self.transform(x)
+        # print(x.shape)
         # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}_transformed.png")
+
+        # get injected planet info 
+        # plt_tic = self.pl_table[(self.pl_table['col1'] == tic_inj)][0]  # transit tic
+        # pl_depth = plt_tic['col10']  # transit depth
+        # pl_dur = plt_tic['col9']     # transit duration
+        # pl_per = plt_tic['col3']     # transit period
+
 
         # return tensors
         return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), True), y
@@ -343,7 +425,6 @@ def collate_fn(batch):
     """
     batch = [x for x in batch if x[0][0] is not None]   # filter on missing fits files
     batch = [x for x in batch if x[1] is not None]      # filter on missing labels
-
     return torch.utils.data.dataloader.default_collate(batch)
 
 
@@ -427,6 +508,7 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
     real_dataset = LCData(data_root_path, labels_root_path)
     sim_dataset = SimulatedData(data_root_path, labels_root_path)
     dataset = torch.utils.data.ConcatDataset([real_dataset, sim_dataset])
+    # dataset = sim_dataset
     print(f"dataset size {len(dataset)}: {len(real_dataset)} real, {len(sim_dataset)} simulated")
 
 
@@ -493,10 +575,16 @@ if __name__ == "__main__":
     with trange(len(train_dataloader)) as t:
         for i, (x, y) in enumerate(train_dataloader):
             # print(i, x, y)
-            if i % 100 == 0:
-                print(i, x, y)
-                print(x[0].shape, y.shape)
-                plot_lc(x[0][0], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{i}.png")
+            print(i, x, y)
+            print(x[0].shape, y.shape)
+            for j in range(len(x)):
+                print(x[-1][j])
+                simulated = "sim" if x[-1][j] else "real"
+                print(simulated)
+                plot_lc(x[0][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                if j == 10:
+                    break
+            break
             t.update()
     
     # # save no label tics to file

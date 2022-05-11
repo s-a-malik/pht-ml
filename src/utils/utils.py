@@ -10,7 +10,8 @@ import torch
 
 from models import nets
 
-SHORTEST_LC = 17546
+# SHORTEST_LC = 17546
+SHORTEST_LC = int(17546/3)  # binned
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
