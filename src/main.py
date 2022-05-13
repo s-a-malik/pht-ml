@@ -25,8 +25,8 @@ def main(args):
     os.makedirs(results_path, exist_ok=True)
 
     # init wandb
-    os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
-    # os.environ['WANDB_MODE'] = 'offline'
+    # os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
+    os.environ['WANDB_MODE'] = 'offline'
     # change artifact cache directory to scratch
     os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './') + '.cache/wandb'
     job_type = "eval" if args.evaluate else "train"

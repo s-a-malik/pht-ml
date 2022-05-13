@@ -243,7 +243,6 @@ class LCData(torch.utils.data.Dataset):
         with open(os.path.join(labels_root_path, "no_label_tics.txt"), "r") as f:
             tic_sec_list = literal_eval(f.read())
             self.no_label_tics = [tic for tic, sec in tic_sec_list]
-        print(self.no_label_tics[:10], len(self.no_label_tics))
         self.lc_file_list = [x for x in self.lc_file_list if int(x.split("/")[-1].split("-")[2]) not in self.no_label_tics]
         print("removed tics with no labels, total num files now: ", len(self.lc_file_list))
 
@@ -375,6 +374,9 @@ class SimulatedData(torch.utils.data.Dataset):
         # read base lc file
         base_lc = glob("{}/planethunters/Rel*{:d}/Sector{}/**/*{:d}*.fit*".format(self.lc_root_path, base_tic_sector, base_tic_sector, tic_base), recursive=True)
         # print(base_lc)
+        if len(base_lc) == 0:
+            print(f"no lc file found for TIC: {tic_base} in sector: {base_tic_sector}")
+            return (None, None, None, True), None
         base_lc = base_lc[0]
         x, tic, sec = _read_lc(base_lc)
         # if corrupt return None and skip c.f. collate_fn
@@ -387,7 +389,11 @@ class SimulatedData(torch.utils.data.Dataset):
         # read injected lc file
         injected_pl = glob("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
         # print(injected_pl)
-        inj_pl = np.genfromtxt(str(injected_pl[0]))
+        if len(injected_pl) == 0:
+            print(f"no injected lc file found for TIC: {tic_inj}")
+            return (None, None, None, True), None
+        injected_pl = injected_pl[0]
+        inj_pl = np.genfromtxt(str(injected_pl))
         # print(f"injected shape {inj_pl.shape}")
 
         # plot_lc(inj_pl, save_path=f"./{tic_inj}_inj.png")
@@ -516,6 +522,7 @@ def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed
     train_idx, test_idx = split(indices, random_state=seed, test_size=test_size)
     train_and_val_set = torch.utils.data.Subset(dataset, train_idx)
     test_set = torch.utils.data.Subset(dataset, test_idx)
+
 
     indices = [i for i in range(len(train_and_val_set))]
     train_idx, val_idx = split(indices, random_state=seed, test_size=val_size/(1-test_size))
