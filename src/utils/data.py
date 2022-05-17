@@ -9,7 +9,6 @@ import time
 from glob import glob
 import functools
 
-
 from tqdm.autonotebook import trange
 
 import torch
@@ -34,6 +33,10 @@ SECTORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 2
 # SECTORS = [10, 11]
 # SECTORS = [37]
 # SECTORS = [10, 11, 12, 13]
+
+TRAIN_SECTORS = [10,11,12,13]
+TEST_SECTORS = [14]
+
 SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length
 
 
@@ -47,7 +50,7 @@ class NormaliseFlux(object):
         pass
 
     def __call__(self, x):
-        x /= np.nanmedian(x)  # TODO why?
+        x /= np.nanmedian(x)
         # median at 0
         x -= np.nanmedian(x)
         x = x.astype(np.float64)  # to fix numpy => torch byte error
@@ -98,14 +101,16 @@ class AddPlTransit(object):
         # get only the long transits
         self.pl_table = self.pl_table[self.pl_table['col3'] > self.min_period]
         print(f"Kept {len(self.pl_table)} transits with period > {self.min_period}")
+        # TODO finish this
+
         # pl_depth = plt_tic['col10']  # transit depth
         #     pl_dur = plt_tic['col9']     # transit duration
         #     pl_per = plt_tic['col3']     # transit period
-# tics_inj = np.array(np.unique(pl['col1'].flatten()))
-#     tics_inj = np.random.choice(tics_inj, 1)[0]  # select one random tic 
+        # tics_inj = np.array(np.unique(pl['col1'].flatten()))
+        #     tics_inj = np.random.choice(tics_inj, 1)[0]  # select one random tic 
 
-#     injected_pl = glob("/mnt/zfsusers/nora/kepler_share/kepler2/TESS/ETE-6/injected/Planets/Planets_*{:d}.txt".format(tics_inj))
-#     inj_pl = np.genfromtxt(str(injected_pl[0]))
+        #     injected_pl = glob("/mnt/zfsusers/nora/kepler_share/kepler2/TESS/ETE-6/injected/Planets/Planets_*{:d}.txt".format(tics_inj))
+        #     inj_pl = np.genfromtxt(str(injected_pl[0]))
 
     def __call__(self, x):
         
@@ -114,6 +119,7 @@ class AddPlTransit(object):
             # choose a random planet transit
 
             plt_tic = self.pl_table[(self.pl_table['col1'] == tic_inj)][0]  # transit tic
+            # TODO finish this
             
             # inject into the light curve
 

@@ -3,7 +3,9 @@ Most code is adapted from Nora Eisner
 NOTE 27/04/22: Plots light curves given the file
 """
 
+import os
 from argparse import ArgumentParser
+
 import numpy as np
 import pandas as pd
 
@@ -29,6 +31,67 @@ def rebin(arr, new_shape):
         arr.shape[1] // new_shape[1],
     )
     return arr.reshape(shape).mean(-1).mean(1)
+
+
+def plot_from_csv(lcfile):
+    """Plot from csv file
+    """
+
+    # load the curve
+    df = pd.read_csv(lcfile)
+    time = df["time"].values
+    flux = df["flux"].values
+
+    ## define the plotting area
+    fig, ax = plt.subplots(figsize=(16, 5))
+    plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
+
+    ax.plot(
+        time,
+        flux,
+        color="darkorange",
+        marker="o",
+        markersize=1,
+        lw=0,
+        label="raw",
+    )
+
+
+    ## define that length on the x axis - I don't want it to display the 0 point
+    delta_flux = np.nanmax(flux) - np.nanmin(flux)
+
+    ## set the y lim.
+    percent_change = delta_flux * 0.1
+    ax.set_ylim(np.nanmin(flux) - percent_change, np.nanmax(flux) + percent_change)
+
+    ## label the axis.
+    ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
+
+    ## define tick marks/axis parameters
+
+    minorLocator = AutoMinorLocator()
+    ax.xaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", which="minor", colors="w", length=3, labelsize=13)
+
+    minorLocator = AutoMinorLocator()
+    ax.yaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+
+    ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
+    ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
+
+    ax.set_xlabel("Time (days)", fontsize=10, color="white")
+
+    # ax.set_axis_bgcolor("#03012d")  # depending on what version of Python you're using.
+    ax.set_facecolor("#03012d")
+
+    ## save the image
+    path = "/mnt/zfsusers/shreshth/pht_project/data/examples"
+    _, file_name = os.path.split(lcfile)
+
+    plt.savefig("%s/%s.png" % (path, file_name), format="png")
+
 
 
 def plot_lc(lcfile, binfac):
@@ -224,22 +287,27 @@ if __name__ == "__main__":
 
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector1/light_curves/two_min/tess2018206045859-s0001-0000000008195886-0120-s_lc.fits"
     lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters/Rel10/Sector10/light_curves/two_min/tess2019085135100-s0010-0000000001627611-0140-s_lc.fit"
-    plot_lc(lc_file, binfac)
+    # plot_lc(lc_file, binfac)
+
+    # lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs/Sector10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999_binfac-5.csv"
+    lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs/Sector10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999.csv"
+
+    plot_from_csv(lc_csv)
 
     # FOR GLAM
     # eclipsing binary dataset
-    eb = Table.read(
-        "/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/ete6_eb_data.txt",
-        format="ascii",
-        comment="#",
-    )
-    # planet dataset
-    pl = Table.read(
-        "/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/ete6_planet_data.txt",
-        format="ascii",
-        comment="#",
-    )
-    print(pl)
+    # eb = Table.read(
+    #     "/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/ete6_eb_data.txt",
+    #     format="ascii",
+    #     comment="#",
+    # )
+    # # planet dataset
+    # pl = Table.read(
+    #     "/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/ete6_planet_data.txt",
+    #     format="ascii",
+    #     comment="#",
+    # )
+    # print(pl)
 
     # # loop over the sectors
     # for sector in range(10, 38):
