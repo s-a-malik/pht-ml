@@ -17,8 +17,30 @@ def preprocess_planets_flux(planet_root_path, save_path, bin_factor):
     - save_path (str): path to save csv files
     - bin_factor (int): bin factor for light curves
     """
+    os.makedirs(save_path, exist_ok=True)
+    planet_files = glob(f"{planet_root_path}/Planets_*.txt")
+    print(f"Found {len(planet_files)} files")
+    with trange(len(planet_files)) as t: 
+        for planet_file in planet_files:
+            # read the file
+            flux = np.genfromtxt(planet_file, delimiter=',')
+            
+            # bin flux
+            N = len(flux)
+            n = int(np.floor(N / bin_factor) * bin_factor)
+            X = np.zeros((1, n))
+            X[0, :] = flux[:n]
+            Xb = rebin(X, (1, int(n / bin_factor)))
+            flux_binned = Xb[0]
 
-    pass
+            _, file_name = os.path.split(planet_file)
+            file_name += f"_binfac-{bin_factor}.csv"
+
+            # save the file
+            file_name = os.path.join(save_path, file_name)
+            pd.DataFrame({"flux": flux_binned}).to_csv(file_name, index=False)
+            # np.savetxt(file_name, flux, delimiter=",") # csv
+            t.update()
 
 
 
@@ -65,8 +87,6 @@ def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
                 pd.DataFrame({"time": time_binned, "flux": flux_binned}).to_csv(file_name, index=False)
                 # np.savetxt(file_name, flux, delimiter=",") # csv
                 t.update()
-                if i == 2:
-                    break
 
 
 def rebin(arr, new_shape):
@@ -116,9 +136,14 @@ def _read_lc(lc_file):
 
 if __name__ == "__main__":
     LC_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/TESS"
+    PLANETS_ROOT_PATH = "/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets"
     LABELS_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/pht_labels"
     SAVE_PATH = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs"
-    SECTORS = [10]
-    BIN_FACTOR = 5
+    PLANETS_SAVE_PATH = "/mnt/zfsusers/shreshth/pht_project/data/planet_csvs"
+    # SECTORS = [10]
+    SECTORS = list(range(10, 15))
+    BIN_FACTOR = 7
 
+    preprocess_planets_flux(PLANETS_ROOT_PATH, PLANETS_SAVE_PATH, BIN_FACTOR)
     preprocess_lcs(LC_ROOT_PATH, SAVE_PATH, SECTORS, BIN_FACTOR)
+
