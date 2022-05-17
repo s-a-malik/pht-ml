@@ -29,7 +29,7 @@ from astropy.table import Table
 
 # SECTORS = list(range(10, 39))
 # without 35 and 37
-SECTORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 38]
+# SECTORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 38]
 # SECTORS = [10, 11]
 # SECTORS = [37]
 # SECTORS = [10, 11, 12, 13]
@@ -509,11 +509,18 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     ## save the image
     plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
 
-
-def get_data_loaders(data_root_path, labels_root_path, val_size, test_size, seed, batch_size, num_workers=0, pin_memory=False):
-    """Get data loaders
-    TODO pin_memory and num_workers sensibly
+        
+def get_data_loaders(args):
+    """Get data loaders given argparse arguments
     """
+    # unpack arguments
+    data_root_path = args.data_path
+    val_size = args.val_size
+    test_size = args.test_size
+    seed = args.seed
+    batch_size = args.batch_size
+    num_workers = args.num_workers
+    pin_memory = False
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
 

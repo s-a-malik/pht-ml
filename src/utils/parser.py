@@ -18,22 +18,22 @@ def parse_args():
         description="Exoplanet detection from TESS light curves")
 
     # data config
-    parser.add_argument("--lc-root-path",
+    parser.add_argument("--data-path",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/data/TESS",
-                        help="Root data directory for light curves")
-    parser.add_argument("--labels-root-path",
-                        type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels",
-                        help="Root path for labels")
+                        default="/mnt/zfsusers/shreshth/pht_project/data",
+                        help="Root path for data")
     parser.add_argument("--log-dir",
                         type=str,
                         default="/mnt/zfsusers/shreshth/pht_project/code/pht-ml/",
                         help="Root for results/output.")
     parser.add_argument("--synthetic-prop",
                         type=float,
-                        default=0.0,
-                        help="Augment with synthetic data, proportion of data to be synthetic.")
+                        default=0.5,
+                        help="Augment with synthetic planet data, proportion of data to be synthetic.")
+    parser.add_argument("--eb-prop",
+                        type=float,
+                        default=0.5,
+                        help="Augment with eclipsing binary data, proportion of data to be EB injected.")
     parser.add_argument("--num-workers",
                         type=int,
                         default=0,

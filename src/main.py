@@ -45,17 +45,7 @@ def main(args):
     print(optimizer)
     print(criterion)
 
-    # TODO add data args to data loader call directly from argparse
-    train_loader, val_loader, test_loader = get_data_loaders(
-        data_root_path=args.lc_root_path,
-        labels_root_path=args.labels_root_path,
-        val_size=args.val_size,
-        test_size=args.test_size,
-        seed=args.seed,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=False
-    )
+    train_loader, val_loader, test_loader = get_data_loaders(args)
 
     # files for checkpoints
     scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
