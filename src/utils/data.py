@@ -174,7 +174,7 @@ class LCData(torch.utils.data.Dataset):
         if self.transform:
             x["flux"] = self.transform(x["flux"])
         # turn into float
-        x["flux"] = (torch.tensor(x["flux"], dtype=torch.float)
+        x["flux"] = torch.tensor(x["flux"], dtype=torch.float)
         
         # add to cache 
         self.cache[idx] = (x, y)
