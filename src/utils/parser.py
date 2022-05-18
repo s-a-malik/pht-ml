@@ -36,11 +36,11 @@ def parse_args():
                         help="Augment with eclipsing binary data, proportion of data to be EB injected.")
     parser.add_argument("--num-workers",
                         type=int,
-                        default=0,
+                        default=4,
                         help="number of data loading workers") 
     parser.add_argument("--bin-factor",
                         type=int,
-                        default=1,
+                        default=7,
                         help="binning factor for light curves")
     parser.add_argument("--aug-prob",
                         type=float,
