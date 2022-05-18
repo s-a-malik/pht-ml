@@ -464,7 +464,7 @@ if __name__ == "__main__":
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
     ap.add_argument("--val-size", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=32)
-    ap.add_argument("--synthetic-prob", type=float, default=1)
+    ap.add_argument("--synthetic-prob", type=float, default=0.5)
     ap.add_argument("--eb-prob", type=float, default=0.0)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--num-workers", type=int, default=4)

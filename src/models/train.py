@@ -41,7 +41,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     preds = []
     tics = []
     secs = []
-    sims = []
+    tic_injs = []
     total = 0
     if task in ["val", "test"]:
         model.eval()
@@ -53,8 +53,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     with trange(len(data_loader)) as t:
         for i, batch in enumerate(data_loader):
             # unpack batch from dataloader
-            (x, tic, sec, sim), y = batch
-            x = x.to(device)
+            x, y = batch
+            flux = x["flux"]
+            flux = flux.to(device)
             y = y.to(device)
             logits = model(x)
             prob = torch.sigmoid(logits)
@@ -64,7 +65,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
-            avg_loss.update(loss.data.cpu().item(), x.size(0))     
+            avg_loss.update(loss.data.cpu().item(), flux.size(0))     
             
             if task == "train":
                 # compute gradient and do SGD step
@@ -80,9 +81,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             targets_bin += y_bin.tolist()
             probs += np.squeeze(prob).tolist()
             preds += np.squeeze(pred).tolist()
-            tics += tic.tolist()
-            secs += sec.tolist()
-            sims += sim.tolist()
+            tics += x["tic"].tolist()
+            secs += x["sec"].tolist()
+            tic_injs += x["tic_inj"].tolist()
             total += logits.size(0)
             # print("targets", y)
             # print("targets_bin", y_bin)
@@ -100,7 +101,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     # TODO for test set, should get more granulater metrics - probs can do this analysis afterwards from the raw results. 
 
     if task == "test":
-        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, sims, total
+        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total
     else:
         return avg_loss.avg, acc, f1, prec, rec, auc
 
