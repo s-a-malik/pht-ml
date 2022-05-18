@@ -1,4 +1,5 @@
-
+"""Preprocess LC and injected planet files for reducing compute/memory requirements during training.
+"""
 import os
 
 from glob import glob

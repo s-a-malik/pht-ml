@@ -37,7 +37,7 @@ from astropy.table import Table
 TRAIN_SECTORS = [10,11,12,13]
 TEST_SECTORS = [14]
 
-SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length
+SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
 
 
 #### TRANSFORMS
@@ -58,13 +58,15 @@ class NormaliseFlux(object):
 
 
 class Cutoff(object):
-    """Restrict LC data to a certain length.
+    """Restrict LC data to a certain length. Cut start or end randomly
     """
     def __init__(self, length=SHORTEST_LC):
         self.length = length
     
     def __call__(self, x):
-        return x[:self.length]
+        # choose a random start to cut
+        start = np.random.randint(0, len(x) - self.length)
+        return x[start:start+self.length]
 
 
 class ImputeNans(object):
@@ -80,55 +82,8 @@ class ImputeNans(object):
             raise NotImplementedError("Only zero imputation is implemented")
 
 
-# class AddEbTransit(object):
-#     """Add random eclipsing binary transits to the light curves
-#     """
-    # def __init__(self, period, duration, amplitude, phase):
-
-
-class AddPlTransit(object):
-    """Add random planetary transits to the light curves
-    TODO decide good params for this
-    """
-    def __init__(self, lc_root_path, min_period, prob):
-        self.lc_root_path = lc_root_path
-        self.min_period = min_period
-        self.prob = prob
-
-        # simulated transit info
-        self.pl_table = Table.read(f"{lc_root_path}/ETE-6/injected/ete6_planet_data.txt", format='ascii',comment='#')
-        print(f"Loaded {len(self.pl_table)} simulated transits")
-        # get only the long transits
-        self.pl_table = self.pl_table[self.pl_table['col3'] > self.min_period]
-        print(f"Kept {len(self.pl_table)} transits with period > {self.min_period}")
-        # TODO finish this
-
-        # pl_depth = plt_tic['col10']  # transit depth
-        #     pl_dur = plt_tic['col9']     # transit duration
-        #     pl_per = plt_tic['col3']     # transit period
-        # tics_inj = np.array(np.unique(pl['col1'].flatten()))
-        #     tics_inj = np.random.choice(tics_inj, 1)[0]  # select one random tic 
-
-        #     injected_pl = glob("/mnt/zfsusers/nora/kepler_share/kepler2/TESS/ETE-6/injected/Planets/Planets_*{:d}.txt".format(tics_inj))
-        #     inj_pl = np.genfromtxt(str(injected_pl[0]))
-
-    def __call__(self, x):
-        
-        # add random planetary transits
-        if np.random.rand() < self.prob:
-            # choose a random planet transit
-
-            plt_tic = self.pl_table[(self.pl_table['col1'] == tic_inj)][0]  # transit tic
-            # TODO finish this
-            
-            # inject into the light curve
-
-            # TODO need to relabel the data as well 
-
-
-
 class BinData(object):
-    """Bin light curves
+    """Bin light curves. (Not used now we pre-bin the data)
     """
 
     def __init__(self, bin_factor=1):
@@ -172,6 +127,7 @@ class RandomDelete(object):
 
         return x
 
+
 class RandomShift(object):
     """Randomly swap a chunk of the data with another chunk
     """
@@ -210,13 +166,20 @@ training_transform = transforms.Compose([
     NormaliseFlux(),
     RandomDelete(prob=0.0, delete_fraction=0.1),
     RandomShift(prob=0.0, permute_fraction=0.1),
-    BinData(bin_factor=3),  # bin before imputing
+    # BinData(bin_factor=3),  # bin before imputing
     ImputeNans(method="zero"),
-    Cutoff(length=int(SHORTEST_LC/3))
+    Cutoff(length=int(SHORTEST_LC/7))
 ])
 
-# TODO test tranforms
-
+# test tranforms - do not randomly delete or permute
+test_transform = transforms.Compose([
+    NormaliseFlux(),
+    RandomDelete(prob=0.0, delete_fraction=0.1),
+    RandomShift(prob=0.0, permute_fraction=0.1),
+    # BinData(bin_factor=3),  # bin before imputing
+    ImputeNans(method="zero"),
+    Cutoff(length=int(SHORTEST_LC/7))
+])
 
 #### DATASET CLASSES
 
@@ -224,40 +187,92 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, lc_root_path, labels_root_path, transform=training_transform):
+    def __init__(self, data_root_path, sectors, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=training_transform):
+        """
+        Params:
+        - data_root_path (str): path to data directory 
+        - sectors (list[int]): list of sectors to load
+        - synthetic_prob (float): proportion of data to be synthetic transits
+        - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - single_transit_only (bool): only use single transits in synthetic data
+        - transform (callable): transform to apply to the data
+        """
         super(LCData, self).__init__()
 
-        self.lc_root_path = lc_root_path
-        self.labels_root_path = labels_root_path
-        # TODO do this differently for testing and training (e.g. shuffling stuff)
-        self.transform = transform 
+        self.data_root_path = data_root_path
+        self.sectors = sectors
+        self.synthetic_prob = synthetic_prob
+        self.eb_prob = eb_prob
+        self.single_transit_only = single_transit_only
+        self.transform = transform
+
+        self.cache = {} # cache for __getitem__
+
+        ##### planetary transits 
+        # simulated transit info
+        pl_table = Table.read(f"{data_root_path}/planet_csvs/ete6_planet_data.txt", format='ascii',comment='#')
+        pl_files = glob(f"{data_root_path}/planet_csvs/Planets_*.txt")
+        print(f"found {len(pl_files)} planet flux files")
+        
+        # load planetary transits into RAM
+        print("adding metadata...")
+        self.pl_data = []   # list of dicts with metadata
+        # TODO better to use a dict to speed up lookup or df to save memory?
+
+        with tqdm(total=len(pl_files)) as t:
+            for i, pl_file in enumerate(pl_files):
+                # extract tic id
+                tic_id = int(pl_file.split("/")[-1].split("_")[1].split(".")[0])
+                print(f"tic_id: {tic_id}")
+                # look up in table
+                pl_row = pl_table[pl_table['col1'] == tic_id]
+                print(pl_row)
+
+                pl_depth = pl_row['col10'][0]  # transit depth
+                pl_dur = pl_row['col9'][0]     # transit duration
+                pl_per = pl_row['col3'][0]     # transit period
+                print(f"depth: {pl_depth}, duration: {pl_dur}, period: {pl_per}")
+                                
+                pl_flux = np.genfromtxt(str(pl_file) skip_header=1)
+                print(pl_flux.shape)
+
+                if self.single_transit_only:
+                    # take only the transit
+                    pl_flux = _extract_transit(pl_flux)
+               
+                self.pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
+                t.update()
+                if i > 10:
+                    break
+    
+        print(f"Loaded {len(pl_data)} simulated transits")
+
+        # TODO use the planet metadata to augment the loss function
+
+
+        ####### LC data
 
         # get list of all lc files
         self.lc_file_list = []
-        for sector in SECTORS:
+        for sector in sectors:
             # print(f"sector: {sector}")
-            new_files = glob(os.path.join(lc_root_path, f"planethunters/Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
+            new_files = glob(f"{self.data_root_path}/Sector{sector}/*.csv"), recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
 
-            # length of light curve in this sector:
-            x, tic, sec = _read_lc(self.lc_file_list[-1])
-            print("length of light curve in sector ", sec, ": ", x.shape, ", TIC: ", tic)
         print("total num. files found: ", len(self.lc_file_list))
 
-        # no labels for these tics
-        with open(os.path.join(labels_root_path, "no_label_tics.txt"), "r") as f:
-            tic_sec_list = literal_eval(f.read())
-            self.no_label_tics = [tic for tic, sec in tic_sec_list]
-        self.lc_file_list = [x for x in self.lc_file_list if int(x.split("/")[-1].split("-")[2]) not in self.no_label_tics]
-        print("removed tics with no labels, total num files now: ", len(self.lc_file_list))
+        ####### Label data
 
         # get all the labels
         self.labels_df = pd.DataFrame()
-        for sector in SECTORS:
-            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
+        for sector in sectors:
+            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
         print("num. total labels (including simulated data): ", len(self.labels_df))
 
+        # removing simulated data
+        self.labels_df = self.labels_df[~self.labels_df["subject_type"]]
+        print("num. real transits labels: ", len(self.labels_df))
         # check how many non-zero labels
         print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
         print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
@@ -268,28 +283,34 @@ class LCData(torch.utils.data.Dataset):
 
 
     # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
-    @functools.lru_cache(maxsize=1000)  # Cache loaded data
+    # @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
         """Returns:
-        - input (tuple)
-            - x (float): light curve
+        - input (dict): dictionary with keys:
+            - flux (float): light curve
             - tic (int): TIC
             - sec (int): sector
-            - sim (bool): True if simulated data
-        - y (float): score
+            - cam (int): camera
+            - chi (int): chi
+            - tessmag (float): TESS magnitude
+            - teff (float): effective temperature
+            - srad (float): stellar radius
+            - binfac (float): binning factor
+            - tic_inj (int): TIC of injected planet (-1 if not injected)
+            - depth (float): transit depth (-1 if not injected)
+            - duration (float): transit duration (-1 if not injected)
+            - period (float): transit period (-1 if not injected)
+        - y (float): volunteer confidence score (1 if synthetic transit)
         """
         # get lc file
         lc_file = self.lc_file_list[idx]
 
         # read lc file
-        x, tic, sec = _read_lc(lc_file)
+        x, tic, sec = _read_lc_csv(lc_file)
         # if corrupt return None and skip c.f. collate_fn
         if x is None:
-            return (None, None, None, False), None
+            return {"flux": None}, None
 
-        if self.transform:
-            x = self.transform(x)
-        # print(x.shape)
 
         # get label for this lc file (if exists) match sector 
         y = self.labels_df.loc[(self.labels_df["TIC_ID"] == tic) & (self.labels_df["sector"] == sec), "maxdb"].values
@@ -304,145 +325,120 @@ class LCData(torch.utils.data.Dataset):
             y = None
             # self.no_label_tics.append((tic, sec))
 
-        # print(x)
+        # TODO probabilistically add synthetic transits, only if labels are zero.
+        if np.random.rand() < self.synthetic_transit_prob:
+            pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
+            x = _inject_transit(x, pl_inj["flux"])
 
-        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), False), y
+        if self.transform:
+            x = self.transform(x)
+        # print(x.shape)
+
+        # add to cache 
+
+        # TODO change this
+        # return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), False), y
+        return {"flux": x, "tic_id": tic, "sector": sec}, y
 
 
 # TODO function to get file from tic id - needed for specific lookup 
 
 
-# class EBData(torch.utils.data.Dataset):
-#     """Eclipsing Binary dataset for training to remove false positives
-#     """
-
-#     def __init__(self, lc_root_path, labels_root_path, transform=transform):
-#         super(EBData, self).__init__()
-
-#         pass
-
-#     def __len__(self):
-#         return 0
-    
-#     def __getitem__(self, idx):
-#         return None, None
-
-
-class SimulatedData(torch.utils.data.Dataset):
-    """Simulated LC dataset for training
-    """
-    def __init__(self, lc_root_path, labels_root_path, transform=training_transform):
-        super(SimulatedData, self).__init__()
-
-        self.lc_root_path = lc_root_path
-        self.labels_root_path = labels_root_path
-        # TODO do this differently for testing and training (e.g. shuffling stuff)
-        self.transform = transform 
-
-        # get the labels and planet info
-        self.labels_df = pd.DataFrame()
-        for sector in SECTORS:
-            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
-        self.simulated_transits_df = self.labels_df[self.labels_df["subject_type"]]
-        print("num. simulated transits labels: ", len(self.simulated_transits_df))
-
-        # simulated transit info
-        self.pl_table = Table.read(f"{lc_root_path}/ETE-6/injected/ete6_planet_data.txt", format='ascii',comment='#')
-
-
-    def __len__(self):
-        return len(self.simulated_transits_df)
-
-    # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
-    @functools.lru_cache(maxsize=1000)  # Cache loaded data
-    def __getitem__(self, idx):
-        """TODO also return the snr to make a differential loss function
-        Returns:
-        - input (tuple)
-            - x (float): light curve
-            - tic (int): TIC
-            - sec (int): sector
-            - sim (bool): True if simulated data
-        - y (float): score
-        """
-
-        this_simulated_transit = self.simulated_transits_df.iloc[idx]
-        # print(this_simulated_transit)
-        y = this_simulated_transit["maxdb"]
-        y = torch.tensor(y, dtype=torch.float)
-
-        tic_base = int(this_simulated_transit["TIC_LC"])
-        tic_inj = int(this_simulated_transit["TIC_inj"])
-        snr = this_simulated_transit["SNR"]
-        base_tic_sector = this_simulated_transit["sector"]
-        # print(y, tic_base, tic_inj, snr, base_tic_sector)
-
-        # read base lc file
-        base_lc = glob("{}/planethunters/Rel*{:d}/Sector{}/**/*{:d}*.fit*".format(self.lc_root_path, base_tic_sector, base_tic_sector, tic_base), recursive=True)
-        # print(base_lc)
-        if len(base_lc) == 0:
-            print(f"no lc file found for TIC: {tic_base} in sector: {base_tic_sector}")
-            return (None, None, None, True), None
-        base_lc = base_lc[0]
-        x, tic, sec = _read_lc(base_lc)
-        # if corrupt return None and skip c.f. collate_fn
-        if x is None:
-            return (None, None, None, True), None
-
-        # debug plot
-        # plot_lc(x, save_path=f"./{tic}_{sec}_real.png")
-
-        # read injected lc file
-        injected_pl = glob("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
-        # print(injected_pl)
-        if len(injected_pl) == 0:
-            print(f"no injected lc file found for TIC: {tic_inj}")
-            return (None, None, None, True), None
-        injected_pl = injected_pl[0]
-        inj_pl = np.genfromtxt(str(injected_pl))
-        # print(f"injected shape {inj_pl.shape}")
-
-        # plot_lc(inj_pl, save_path=f"./{tic_inj}_inj.png")
-
-        # inject planet
-        if len(inj_pl)>len(x):
-            inj_pl = inj_pl[:len(x)]
-        x = inj_pl * x
-
-        # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}.png")
-
-        # transform
-        if self.transform:
-            x = self.transform(x)
-        # print(x.shape)
-        # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}_transformed.png")
-
-        # get injected planet info 
-        # plt_tic = self.pl_table[(self.pl_table['col1'] == tic_inj)][0]  # transit tic
-        # pl_depth = plt_tic['col10']  # transit depth
-        # pl_dur = plt_tic['col9']     # transit duration
-        # pl_per = plt_tic['col3']     # transit period
-
-
-        # return tensors
-        return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), True), y
-
-
-### UTILS
+##### UTILS
 
 # TODO collate fn to return a good batch of simulated and real data (do this from the data loader
 def collate_fn(batch):
     """Collate function for filtering out corrupted data in the dataset
     Assumes that missing data are NoneType
     """
-    batch = [x for x in batch if x[0][0] is not None]   # filter on missing fits files
+    batch = [x for x in batch if x[0]["flux"] is not None]   # filter on missing fits files
     batch = [x for x in batch if x[1] is not None]      # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
 
 
+def _extract_transit(x):
+    """Extract a single transit from the planet flux
+    Params:
+    - x (np.array): flux of the light curve
+    Returns:
+    - transit (np.array): extracted single transit (shape variable)
+    """
+    # get the first dip
+    start_idx = np.argmax(x<1)
+    # get the end of the dip
+    length = np.argmax(x[start_idx:]==1)
+    # take one extra from either side
+    transit = x[start_idx-1:start_idx+length+1]
+
+    return transit
+
+
+def _inject_transit(base_flux, injected_flux):
+    """Inject a transit into a base light curve. 
+    N.B. Need to ensure both fluxes correspond to the same cadence.
+    Params:
+    - base_flux (np.array): base LC to inject into
+    - injected_flux (np.array): transit to inject (different length to base)
+    """
+    print("injecting transit")
+    if len(injected_flux) > len(base_flux):
+        injected_flux = injected_flux[:len(base_flux)]
+    
+    # ensure the injected flux is not in a missing data region
+    missing_data = True
+    while missing_data:
+        # add injected flux section to random part of base flux
+        start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
+        # check if there is missing data in the injected flux
+        print("checking for missing data")
+        print(base_flux[start_idx:start_idx+len(injected_flux)])
+        if base_flux[start_idx] != 0.0:
+            missing_data = False
+
+    print("start idx: ", start_idx, "length", len(base_flux), len(injected_flux))
+    base_flux[start_idx:start_idx+len(injected_flux)] *= injected_flux
+
+    return base_flux
+
+
+def _read_lc_csv(lc_file):
+    """Read LC flux from preprocessed csv
+    Params:
+    - lc_file (str): path to lc_file
+    Returns:
+    - x (dict): dictionary with keys:
+        - flux (np.array): light curve
+        - tic (int): TIC
+        - sec (int): sector
+        - cam (int): camera
+        - chi (int): chi
+        - tessmag (float): TESS magnitude
+        - teff (float): effective temperature
+        - srad (float): stellar radius
+        - binfac (float): binning factor
+    """
+
+    # read the csv file
+    df = pd.read_csv(lc_file, delimiter=',', skip_header=1)
+    # get the flux
+    x = {}
+    x["flux"] = df["flux"].values
+
+    # parse the file name
+    file_name = lc_file.split("/")[-1]
+    params = file_name.split("_")
+    for i, param in enumerate(params):
+        if i == len(params) - 1:
+            # remove .csv
+            x[param.split("-")[0]] = literal_eval(param.split("-")[1][:-4])
+        else:
+            x[param.split("-")[0]] = literal_eval(param.split("-")[1])
+
+    return x
+
+
 def _read_lc(lc_file):
-    """Read light curve file
-    TODO use the other data
+    """Read light curve .fits file
     """
     # open the file in context manager - catching corrupt files
     try:
@@ -523,6 +519,7 @@ def get_data_loaders(args):
     pin_memory = False
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
+
 
     real_dataset = LCData(data_root_path, labels_root_path)
     sim_dataset = SimulatedData(data_root_path, labels_root_path)
@@ -614,3 +611,108 @@ if __name__ == "__main__":
     #     csv_out.writerow(['tic_id','sec'])
     #     for row in train_dataloader.dataset.no_label_tics:
     #         csv_out.writerow(row)
+
+
+
+
+
+
+
+# class SimulatedData(torch.utils.data.Dataset):
+#     """Simulated LC dataset for training
+#     """
+#     def __init__(self, lc_root_path, labels_root_path, transform=training_transform):
+#         super(SimulatedData, self).__init__()
+
+#         self.lc_root_path = lc_root_path
+#         self.labels_root_path = labels_root_path
+#         # TODO do this differently for testing and training (e.g. shuffling stuff)
+#         self.transform = transform 
+
+#         # get the labels and planet info
+#         self.labels_df = pd.DataFrame()
+#         for sector in SECTORS:
+#             self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{labels_root_path}/summary_file_sec{sector}.csv")], axis=0)
+#         self.simulated_transits_df = self.labels_df[self.labels_df["subject_type"]]
+#         print("num. simulated transits labels: ", len(self.simulated_transits_df))
+
+#         # simulated transit info
+#         self.pl_table = Table.read(f"{lc_root_path}/ETE-6/injected/ete6_planet_data.txt", format='ascii',comment='#')
+
+
+#     def __len__(self):
+#         return len(self.simulated_transits_df)
+
+#     # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
+#     @functools.lru_cache(maxsize=1000)  # Cache loaded data
+#     def __getitem__(self, idx):
+#         """TODO also return the snr to make a differential loss function
+#         Returns:
+#         - input (tuple)
+#             - x (float): light curve
+#             - tic (int): TIC
+#             - sec (int): sector
+#             - sim (bool): True if simulated data
+#         - y (float): score
+#         """
+
+#         this_simulated_transit = self.simulated_transits_df.iloc[idx]
+#         # print(this_simulated_transit)
+#         y = this_simulated_transit["maxdb"]
+#         y = torch.tensor(y, dtype=torch.float)
+
+#         tic_base = int(this_simulated_transit["TIC_LC"])
+#         tic_inj = int(this_simulated_transit["TIC_inj"])
+#         snr = this_simulated_transit["SNR"]
+#         base_tic_sector = this_simulated_transit["sector"]
+#         # print(y, tic_base, tic_inj, snr, base_tic_sector)
+
+#         # read base lc file
+#         base_lc = glob("{}/planethunters/Rel*{:d}/Sector{}/**/*{:d}*.fit*".format(self.lc_root_path, base_tic_sector, base_tic_sector, tic_base), recursive=True)
+#         # print(base_lc)
+#         if len(base_lc) == 0:
+#             print(f"no lc file found for TIC: {tic_base} in sector: {base_tic_sector}")
+#             return (None, None, None, True), None
+#         base_lc = base_lc[0]
+#         x, tic, sec = _read_lc(base_lc)
+#         # if corrupt return None and skip c.f. collate_fn
+#         if x is None:
+#             return (None, None, None, True), None
+
+#         # debug plot
+#         # plot_lc(x, save_path=f"./{tic}_{sec}_real.png")
+
+#         # read injected lc file
+#         injected_pl = glob("{}/ETE-6/injected/Planets/Planets_*{:d}.txt".format(self.lc_root_path, tic_inj))
+#         # print(injected_pl)
+#         if len(injected_pl) == 0:
+#             print(f"no injected lc file found for TIC: {tic_inj}")
+#             return (None, None, None, True), None
+#         injected_pl = injected_pl[0]
+#         inj_pl = np.genfromtxt(str(injected_pl))
+#         # print(f"injected shape {inj_pl.shape}")
+
+#         # plot_lc(inj_pl, save_path=f"./{tic_inj}_inj.png")
+
+#         # inject planet
+#         if len(inj_pl)>len(x):
+#             inj_pl = inj_pl[:len(x)]
+#         x = inj_pl * x
+
+#         # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}.png")
+
+#         # transform
+#         if self.transform:
+#             x = self.transform(x)
+#         # print(x.shape)
+#         # plot_lc(x, save_path=f"./{tic}_{sec}_real_inj_{tic_inj}_transformed.png")
+
+#         # get injected planet info 
+#         # plt_tic = self.pl_table[(self.pl_table['col1'] == tic_inj)][0]  # transit tic
+#         # pl_depth = plt_tic['col10']  # transit depth
+#         # pl_dur = plt_tic['col9']     # transit duration
+#         # pl_per = plt_tic['col3']     # transit period
+
+
+#         # return tensors
+#         return (torch.tensor(x, dtype=torch.float), torch.tensor(tic), torch.tensor(sec), True), y
