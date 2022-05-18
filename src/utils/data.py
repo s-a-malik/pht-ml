@@ -210,39 +210,47 @@ class LCData(torch.utils.data.Dataset):
         self.cache = {} # cache for __getitem__
 
         ##### planetary transits 
-        # simulated transit info
-        pl_table = Table.read(f"{data_root_path}/planet_csvs/ete6_planet_data.txt", format='ascii',comment='#')
-        pl_files = glob(f"{data_root_path}/planet_csvs/Planets_*.csv")
-        print(f"found {len(pl_files)} planet flux files")
+        if self.synthetic_prob > 0.0:
+            # simulated transit info
+            pl_table = Table.read(f"{data_root_path}/planet_csvs/ete6_planet_data.txt", format='ascii',comment='#')
+            pl_files = glob(f"{data_root_path}/planet_csvs/Planets_*.csv")
+            print(f"found {len(pl_files)} planet flux files")
+            
+            # load planetary transits into RAM
+            self.pl_data = []   # list of dicts with metadata
+            # TODO better to use a dict to speed up lookup or df to save memory?
+            print("loading planet metadata...")
+            with trange(len(pl_files)) as t:
+                for i, pl_file in enumerate(pl_files):
+                    # extract tic id
+                    tic_id = int(pl_file.split("/")[-1].split("_")[1].split(".")[0])
+                    # look up in table
+                    pl_row = pl_table[pl_table['col1'] == tic_id]
+
+                    pl_depth = pl_row['col10'][0]  # transit depth
+                    pl_dur = pl_row['col9'][0]     # transit duration
+                    pl_per = pl_row['col3'][0]     # transit period                  
+                    pl_flux = np.genfromtxt(str(pl_file), skip_header=1)
+                    if len(pl_flux) == 0:
+                        print(f"WARNING: no data for tic {tic_id}", pl_row)
+                        print(f"skipping...")
+                        continue
+                    if self.single_transit_only:
+                        # take only the transit
+                        pl_flux = _extract_single_transit(pl_flux)
+                        if len(pl_flux) == 0:
+                            print(f"WARNING: no transit found for tic {tic_id}", pl_row)
+                            print(f"skipping...")
+                            continue
+                    
+                    self.pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
+                    t.update()
+                    # if i > 10:
+                    #     break
         
-        # load planetary transits into RAM
-        self.pl_data = []   # list of dicts with metadata
-        # TODO better to use a dict to speed up lookup or df to save memory?
-        with trange(len(pl_files)) as t:
-            for i, pl_file in enumerate(pl_files):
-                # extract tic id
-                tic_id = int(pl_file.split("/")[-1].split("_")[1].split(".")[0])
-                # look up in table
-                pl_row = pl_table[pl_table['col1'] == tic_id]
+            print(f"Loaded {len(self.pl_data)} simulated transits")
+            print("examples", self.pl_data[-5:])
 
-                pl_depth = pl_row['col10'][0]  # transit depth
-                pl_dur = pl_row['col9'][0]     # transit duration
-                pl_per = pl_row['col3'][0]     # transit period                  
-                pl_flux = np.genfromtxt(str(pl_file), skip_header=1)
-
-                if self.single_transit_only:
-                    # take only the transit
-                    pl_flux = _extract_single_transit(pl_flux)
-               
-                self.pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
-                t.update()
-                if i > 10:
-                    break
-    
-        print(f"Loaded {len(self.pl_data)} simulated transits")
-        print("example", self.pl_data[0])
-
-        # TODO use the planet metadata to augment the loss function
 
         ####### LC data
 
@@ -322,11 +330,10 @@ class LCData(torch.utils.data.Dataset):
             # self.no_label_tics.append((tic, sec))
 
         # probabilistically add synthetic transits, only if labels are zero.
-        print("y == 0.0", y == 0.0)
-        if (np.random.rand() < self.synthetic_transit_prob) and (y == 0.0):
-            print("injecting transit")
+        if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
+            # print("injecting transit")
             pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
-            print(pl_inj)
+            # print(pl_inj)
             x["flux"] = _inject_transit(x["flux"], pl_inj["flux"])
             x["tic_inj"] = pl_inj["tic_id"]
             x["depth"] = pl_inj["depth"]
@@ -344,10 +351,11 @@ class LCData(torch.utils.data.Dataset):
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-        print(x.shape)
 
         # add to cache 
         self.cache[idx] = (x, y)
+
+        # print("returning...", x, y)
 
         return x, y
 
@@ -374,12 +382,16 @@ def _extract_single_transit(x):
     Returns:
     - transit (np.array): extracted single transit (shape variable)
     """
+    # print("extracting single transit")
     # get the first dip
     start_idx = np.argmax(x<1)
     # get the end of the dip
     length = np.argmax(x[start_idx:]==1)
     # take one extra from either side
-    transit = x[start_idx-1:start_idx+length+1]
+    if start_idx > 0:
+        transit = x[start_idx-1:start_idx+length+1]
+    else:
+        transit = x[start_idx:start_idx+length+1]
 
     return transit
 
@@ -391,7 +403,6 @@ def _inject_transit(base_flux, injected_flux):
     - base_flux (np.array): base LC to inject into
     - injected_flux (np.array): transit to inject (different length to base)
     """
-    print("injecting transit")
     if len(injected_flux) > len(base_flux):
         injected_flux = injected_flux[:len(base_flux)]
     
@@ -401,13 +412,15 @@ def _inject_transit(base_flux, injected_flux):
         # add injected flux section to random part of base flux
         start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
         # check if there is missing data in the injected flux
-        print("checking for missing data")
-        print(base_flux[start_idx:start_idx+len(injected_flux)])
-        if base_flux[start_idx] != 0.0:
-            missing_data = False
+        # print("checking for missing data")
+        # print(base_flux[start_idx:start_idx+len(injected_flux)])
 
-    print("start idx: ", start_idx, "length", len(base_flux), len(injected_flux))
-    base_flux[start_idx:start_idx+len(injected_flux)] *= injected_flux
+        # if there is 20% missing data in the transit, try again      
+        missing_data = np.count_nonzero(np.isnan(base_flux[start_idx:start_idx+len(injected_flux)])) / len(injected_flux) > 0.2
+        # print("prop of data missing", np.count_nonzero(np.isnan(base_flux[start_idx:start_idx+len(injected_flux)])) / len(injected_flux), ">0.2", missing_data)
+
+    # print("start idx: ", start_idx, "length", len(base_flux), len(injected_flux))
+    base_flux[start_idx:start_idx+len(injected_flux)] = base_flux[start_idx:start_idx+len(injected_flux)] * injected_flux
 
     return base_flux
 
@@ -444,6 +457,8 @@ def _read_lc_csv(lc_file):
                 x[param.split("-")[0]] = literal_eval(param.split("-")[1][:-4])
             else:
                 x[param.split("-")[0]] = literal_eval(param.split("-")[1])
+            # convert None to -1
+            x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
     except:
         print("failed to read file: ", lc_file)
         x = None
@@ -541,6 +556,11 @@ def get_data_loaders(args):
         single_transit_only=True,
         transform=training_transform
     )
+    indices = [i for i in range(len(train_dataset))]
+    train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
+    train_set = torch.utils.data.Subset(train_dataset, train_idx)
+    val_set = torch.utils.data.Subset(train_dataset, val_idx)
+
     test_set = LCData(
         data_root_path=data_root_path,
         sectors=TEST_SECTORS,
@@ -549,11 +569,6 @@ def get_data_loaders(args):
         single_transit_only=True,       # irrelevant for test set
         transform=test_transform
     )
-
-    indices = [i for i in range(len(dataset))]
-    train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
-    train_set = torch.utils.data.Subset(train_dataset, train_idx)
-    val_set = torch.utils.data.Subset(train_dataset, val_idx)
 
     print(f'Size of training set: {len(train_set)}')
     print(f'Size of val set: {len(val_set)}')
@@ -578,8 +593,8 @@ def get_data_loaders(args):
                                                 pin_memory=pin_memory,
                                                 collate_fn=collate_fn)
 
-
     return train_dataloader, val_dataloader, test_dataloader
+
 
 if __name__ == "__main__":
     
@@ -591,28 +606,20 @@ if __name__ == "__main__":
     ap.add_argument("--synthetic-prob", type=float, default=0.5)
     ap.add_argument("--eb-prob", type=float, default=0.0)
     ap.add_argument("--batch-size", type=int, default=32)
-    ap.add_argument("--num-workers", type=int, default=-1)
+    ap.add_argument("--num-workers", type=int, default=0)
     args = ap.parse_args()
 
     train_dataloader, val_dataloader, test_dataloader = get_data_loaders(args)
     with trange(len(train_dataloader)) as t:
         for i, (x, y) in enumerate(train_dataloader):
             print(i, x, y)
-            print(x[0]["flux"].shape, y.shape)
+            print(x["flux"].shape, y.shape)
             for j in range(len(x)):
-                simulated = "sim" if x[-1]["tic_inj"][j] == -1 else "real"
+                simulated = "sim" if x["tic_inj"][j] != -1 else "real"
                 print(simulated)
-                plot_lc(x[0]["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
                 if j == 10:
                     break
             break
             t.update()
     
-    # # save no label tics to file
-    # print("no label tics: ", train_dataloader.dataset.no_label_tics)
-    # with open('/mnt/zfsusers/shreshth/pht_project/data/pht_labels/no_label_tics.csv','w') as out:
-    #     csv_out = csv.writer(out)
-    #     csv_out.writerow(['tic_id','sec'])
-    #     for row in train_dataloader.dataset.no_label_tics:
-    #         csv_out.writerow(row)
-
