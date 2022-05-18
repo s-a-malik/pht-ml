@@ -26,13 +26,13 @@ def parse_args():
                         type=str,
                         default="/mnt/zfsusers/shreshth/pht_project/code/pht-ml/",
                         help="Root for results/output.")
-    parser.add_argument("--synthetic-prop",
+    parser.add_argument("--synthetic-prob",
                         type=float,
                         default=0.5,
                         help="Augment with synthetic planet data, proportion of data to be synthetic.")
-    parser.add_argument("--eb-prop",
+    parser.add_argument("--eb-prob",
                         type=float,
-                        default=0.5,
+                        default=0.0,
                         help="Augment with eclipsing binary data, proportion of data to be EB injected.")
     parser.add_argument("--num-workers",
                         type=int,
