@@ -26,7 +26,8 @@ from sklearn.model_selection import train_test_split as split
 import astropy.io.fits as pf
 from astropy.table import Table
 
-from transforms import training_transform, test_transform
+from utils.transforms import training_transform, test_transform
+# from transforms import training_transform, test_transform
 
 # SECTORS = list(range(10, 39))
 # without 35 and 37
@@ -172,11 +173,11 @@ class LCData(torch.utils.data.Dataset):
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-
+        # turn into float
+        x["flux"] = (torch.tensor(x["flux"], dtype=torch.float)
+        
         # add to cache 
         self.cache[idx] = (x, y)
-
-        # print("returning...", x, y)
 
         return x, y
 
