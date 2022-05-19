@@ -70,9 +70,7 @@ def init_model(args):
     elif args.model == "ramjet":
         model = nets.Ramjet(
             input_dim=args.max_lc_length,
-            hid_dims=args.hid_dims,
             output_dim=1,
-            non_linearity="LeakyReLU",
             dropout=0.1
         )
     # elif args.model == "resnet34":

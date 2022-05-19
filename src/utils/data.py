@@ -30,13 +30,10 @@ from astropy.table import Table
 from utils import transforms
 
 # SECTORS = list(range(10, 39))
-# without 35 and 37
-# SECTORS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 38]
-# SECTORS = [10, 11]
-# SECTORS = [37]
-# SECTORS = [10, 11, 12, 13]
 
-TRAIN_SECTORS = [10,11,12,13]
+# TRAIN_SECTORS = [10,11,12,13]
+# TEST_SECTORS = [14]
+TRAIN_SECTORS = [10]
 TEST_SECTORS = [14]
 
 # SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
@@ -48,7 +45,7 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, data_root_path, sectors, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=training_transform):
+    def __init__(self, data_root_path, sectors, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None):
         """
         Params:
         - data_root_path (str): path to data directory 
@@ -127,7 +124,7 @@ class LCData(torch.utils.data.Dataset):
         """
         # check if we have this data cached
         if idx in self.cache:
-            print("cached", idx, "total", len(self.cache))
+            # print("cached", idx, "total", len(self.cache))
             return self.cache[idx]
 
         # get lc file
@@ -142,11 +139,11 @@ class LCData(torch.utils.data.Dataset):
         if len(y) == 1:
             y = torch.tensor(y[0], dtype=torch.float)
         elif len(y) > 1:
-            print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
+            # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
             y = None
             # self.no_label_tics.append((tic, sec))
         else:
-            print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
+            # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
             y = None
             # self.no_label_tics.append((tic, sec))
 
@@ -223,7 +220,7 @@ class LCData(torch.utils.data.Dataset):
                 #     break
     
         print(f"Loaded {len(pl_data)} simulated transits")
-        print("examples", pl_data[-5:])
+        # print("examples", pl_data[-5:])
 
         return pl_data
 
@@ -322,7 +319,7 @@ def _read_lc_csv(lc_file):
             # convert None to -1
             x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
     except:
-        print("failed to read file: ", lc_file)
+        # print("failed to read file: ", lc_file)
         x = None
     return x
 
@@ -456,6 +453,7 @@ def get_data_loaders(args):
     print(f'Size of training set: {len(train_set)}')
     print(f'Size of val set: {len(val_set)}')
     print(f'Size of test set: {len(test_set)}')
+    print(f"training/val sets have {synthetic_prob} proportion of synthetic data")
 
     train_dataloader = torch.utils.data.DataLoader(train_set,
                                                 batch_size=batch_size,

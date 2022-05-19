@@ -22,13 +22,18 @@ class Cutoff(object):
     """Restrict LC data to a certain length. Cut start or end randomly
     TODO we could also pad to the median length
     """
-    def __init__(self, length=18900):
+    def __init__(self, length=2700):
         self.length = length
     
     def __call__(self, x):
         # choose a random start to cut
-        start = np.random.randint(0, len(x) - self.length)
-        return x[start:start+self.length]
+        if len(x) == self.length:
+            return x
+        elif len(x) > self.length:
+            start = np.random.randint(0, len(x) - self.length)
+            return x[start:start+self.length]
+        else:
+            raise ValueError(f"Length of light curve is {len(x)} but should be minimum {self.length}")
 
 
 class ImputeNans(object):

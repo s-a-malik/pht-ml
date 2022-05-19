@@ -7,52 +7,78 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class LightCurveNetworkBlock(nn.Module):
+class ConvBlock(nn.Module):
     """A block containing a convolution and all the fixings that go with it.
     Adapted from ramjet https://github.com/golmschenk/ramjet/blob/master/ramjet/models/components/light_curve_network_block.py
     N.B. removed spatial dropout.
     TODO port from keras
     """
-    def __init__(self, filters: int, kernel_size: int, pooling_size: int, dropout: float = 0.1,
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, pooling_size: int, dropout: float = 0.1,
                  batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
-        super(LightCurveNetworkBlock, self).__init__()
-        self.convolution = nn.Conv1D(filters, kernel_size=kernel_size)
-        self.act = get_activation(activation)
+        super(ConvBlock, self).__init__()
+        # self.convolution = nn.Conv1D(filters, kernel_size=kernel_size)
+        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
+        self.act = get_activation(non_linearity)
         if dropout > 0:
             self.dropout = nn.Dropout(p=dropout)
         else:
             self.dropout = None
         if pooling_size > 1:
-            self.max_pooling = nn.MaxPool1D(kernel_size=pooling_size)
+            self.max_pooling = nn.MaxPool1d(kernel_size=pooling_size)
         else:
             self.max_pooling = None
         if batch_normalization:
-            self.batch_normalization = nn.BatchNorm1d(filters)
-            self.batch_normalization_input_reshape = Reshape([-1])
-            self.batch_normalization_output_reshape = Reshape([-1, filters])
+            self.batch_normalization = nn.BatchNorm1d(out_channels)
+            # self.batch_normalization_input_reshape = Reshape([-1])
+            # self.batch_normalization_output_reshape = Reshape([-1, filters])
         else:
             self.batch_normalization = None
-#convolution/dense transformation, activation, dropout, max pooling, and batch normalization.
 
-    def call(self, x):
+    def forward(self, x):
         """
         The forward pass of the layer.
         """
-        x = self.convolution(x)
+        x = self.conv(x)
         x = self.act(x)
         if self.dropout is not None:
             x = self.dropout(x)
         if self.max_pooling is not None:
             x = self.max_pooling(x)
         if self.batch_normalization is not None:
-            if self.batch_normalization_input_reshape is not None:
-                x = self.batch_normalization_input_reshape(x)
+            # if self.batch_normalization_input_reshape is not None: # TODO what is this for?
+            #     x = self.batch_normalization_input_reshape(x)
             x = self.batch_normalization(x)
-            if self.batch_normalization_output_reshape is not None:
-                x = self.batch_normalization_output_reshape(x)
+            # if self.batch_normalization_output_reshape is not None:
+            #     x = self.batch_normalization_output_reshape(x)
         return x
 
 
+class DenseBlock(nn.Module):
+    """A block containing a dense layer and all the fixings that go with it.
+    """
+
+    def __init__(self, input_dim, output_dim: int = 1, dropout: float = 0.1,
+                 batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
+        super(DenseBlock, self).__init__()
+        self.linear = nn.Linear(input_dim, output_dim)
+        self.act = get_activation(non_linearity)
+        if dropout > 0:
+            self.dropout = nn.Dropout(p=dropout)
+        else:
+            self.dropout = None
+        if batch_normalization:
+            self.batch_normalization = nn.BatchNorm1d(output_dim)
+        else:
+            self.batch_normalization = None
+
+    def forward(self, x):
+        x = self.linear(x)
+        x = self.act(x)
+        if self.dropout is not None:
+            x = self.dropout(x)
+        if self.batch_normalization is not None:
+            x = self.batch_normalization(x)
+        return x
 
 
 class Ramjet(nn.Module):
@@ -60,56 +86,50 @@ class Ramjet(nn.Module):
     Identifying Planetary Transit Candidates in TESS Full-frame Image Light Curves via Convolutional Neural Networks, Olmschenk 2021
     https://iopscience.iop.org/article/10.3847/1538-3881/abf4c6
     """
-    def __init__(self, input_size, output_size, hidden_size, num_layers, dropout):
+    def __init__(self, input_dim, output_dim=1, dropout=0.1):
         super(Ramjet, self).__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         self.dropout = dropout
 
-    def __init__(self):
-        super().__init__()
-
-        self.block0 = LightCurveNetworkBlock(filters=8, kernel_size=3, pooling_size=2, batch_normalization=False,
+        self.block0 = ConvBlock(in_channels=1, out_channels=8, kernel_size=3, pooling_size=2, batch_normalization=False,
                                              dropout=0)
-        self.block1 = LightCurveNetworkBlock(filters=8, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.block2 = LightCurveNetworkBlock(filters=16, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.block3 = LightCurveNetworkBlock(filters=32, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.block4 = LightCurveNetworkBlock(filters=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.block5 = LightCurveNetworkBlock(filters=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.block6 = LightCurveNetworkBlock(filters=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
-        self.block7 = LightCurveNetworkBlock(filters=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
-        self.block8 = LightCurveNetworkBlock(filters=20, kernel_size=3, pooling_size=1, dropout=self.dropout)
-        self.block9 = LightCurveNetworkBlock(filters=20, kernel_size=7, pooling_size=1, dropout=self.dropout)
-        self.block10 = LightCurveNetworkBlock(filters=20, kernel_size=1, pooling_size=1, batch_normalization=False,
-                                              dropout=0)
+        self.block1 = ConvBlock(in_channels=8, out_channels=8, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block2 = ConvBlock(in_channels=8, out_channels=16, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block3 = ConvBlock(in_channels=16, out_channels=32, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block4 = ConvBlock(in_channels=32, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block5 = ConvBlock(in_channels=64, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block6 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout) # another pool
+        self.block7 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
+        
+        self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)
+        self.block9 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)
 
-        # TODO add dense layers as in paper
+        # self.block8 = LightCurveNetworkBlock(filters=20, kernel_size=3, pooling_size=1, dropout=self.dropout)
+        # self.block9 = LightCurveNetworkBlock(filters=20, kernel_size=7, pooling_size=1, dropout=self.dropout)
+        # self.block10 = LightCurveNetworkBlock(filters=20, kernel_size=1, pooling_size=1, batch_normalization=False,
+                                            #   dropout=0)
+                               
+        self.linear_out = nn.Linear(20, self.output_dim)
 
-                                            
-        self.prediction_layer = nn.Conv1d(1, out_channels, kernel_size=1)
-        # TODO port from keras
-        self.reshape = Reshape([1])
 
     def forward(self, x):
-        # LC_LEN = 2900 for binned sectors 10-14
-        x = x.view(-1, 1, self.input_size)
-        # input shape: (B, 1, LC_LEN)
-        x = self.block0(x)              # (B, 8, LC_LEN)
-        x = self.block1(x)              # (batch_size, 1, 8)
-        x = self.block2(x) 
-        x = self.block3(x)
-        x = self.block4(x)
-        x = self.block5(x)
-        x = self.block6(x)
-        x = self.block7(x)
-        x = self.block8(x)
-        x = self.block9(x)
-        x = self.block10(x)
-        x = self.prediction_layer(x)
-        x = F.sigmoid(x)
-        outputs = self.reshape(x)
+        # (B, C, L)
+        # LC_LEN = 2700 for binned sectors 10-14
+        x = x.view(x.shape[0], 1, x.shape[-1])  # input shape: (B, 1, 2700)
+        x = self.block0(x)              # (B, 8, 1349)
+        x = self.block1(x)              # (B, 8, 673)
+        x = self.block2(x)              # (B, 16, 335)
+        x = self.block3(x)              # (B, 32, 166)
+        x = self.block4(x)              # (B, 64, 82)
+        x = self.block5(x)              # (B, 128, 40)
+        x = self.block6(x)              # (B, 128, 19)
+        x = self.block7(x)              # (B, 128, 17)
+        x = x.view(x.shape[0], -1)      # (B, 128*17)
+        x = self.block8(x)              # (B, 512)
+        x = self.block9(x)              # (B, 20)
+        outputs = self.linear_out(x)    # (B, 1)
+
         return outputs
 
 

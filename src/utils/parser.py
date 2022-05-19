@@ -36,7 +36,7 @@ def parse_args():
                         help="Augment with eclipsing binary data, proportion of data to be EB injected.")
     parser.add_argument("--num-workers",
                         type=int,
-                        default=4,
+                        default=0,
                         help="number of data loading workers") 
     parser.add_argument("--bin-factor",
                         type=int,
@@ -59,7 +59,7 @@ def parse_args():
     # model config
     parser.add_argument("--model",
                         type=str,
-                        default="dense",
+                        default="ramjet",
                         help="Model type.")
     parser.add_argument("--dropout",
                         type=float,
@@ -84,7 +84,7 @@ def parse_args():
                         help="Number of convolutional layers.")
     parser.add_argument("--max-lc-length",
                         type=int,
-                        default=18900/7,
+                        default=2700,
                         help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
 
 

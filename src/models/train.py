@@ -149,7 +149,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
-                data_loader=train_loader,
+                data_loader=val_loader,
                 device=args.device,
                 task="val")
 
