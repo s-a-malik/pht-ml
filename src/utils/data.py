@@ -13,6 +13,7 @@ import functools
 from tqdm.autonotebook import trange
 
 import torch
+import torchvision
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
@@ -26,8 +27,7 @@ from sklearn.model_selection import train_test_split as split
 import astropy.io.fits as pf
 from astropy.table import Table
 
-from utils.transforms import training_transform, test_transform
-# from transforms import training_transform, test_transform
+from utils import transforms
 
 # SECTORS = list(range(10, 39))
 # without 35 and 37
@@ -39,8 +39,8 @@ from utils.transforms import training_transform, test_transform
 TRAIN_SECTORS = [10,11,12,13]
 TEST_SECTORS = [14]
 
-SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
-
+# SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
+# SHORTEST_LC = int(18900/7) # binned sector 10-14
 
 #### DATASET CLASSES
 
@@ -407,7 +407,28 @@ def get_data_loaders(args):
     eb_prob = args.eb_prob
     batch_size = args.batch_size
     num_workers = args.num_workers
+    max_lc_length = args.max_lc_length
     pin_memory = True
+
+    # composed transform
+    training_transform = torchvision.transforms.Compose([
+        transforms.NormaliseFlux(),
+        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
+        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
+        # transforms.BinData(bin_factor=3),  # bin before imputing
+        transforms.ImputeNans(method="zero"),
+        transforms.Cutoff(length=max_lc_length)
+    ])
+
+    # test tranforms - do not randomly delete or permute
+    test_transform = torchvision.transforms.Compose([
+        transforms.NormaliseFlux(),
+        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
+        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
+        # transforms.BinData(bin_factor=3),  # bin before imputing
+        transforms.ImputeNans(method="zero"),
+        transforms.Cutoff(length=max_lc_length)
+    ])
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_dataset = LCData(
@@ -469,6 +490,7 @@ if __name__ == "__main__":
     ap.add_argument("--eb-prob", type=float, default=0.0)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--num-workers", type=int, default=4)
+    ap.add_argument("---max-lc-length", type=int, default=18900/7)
     args = ap.parse_args()
 
     train_dataloader, val_dataloader, test_dataloader = get_data_loaders(args)

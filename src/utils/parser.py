@@ -63,7 +63,7 @@ def parse_args():
                         help="Model type.")
     parser.add_argument("--dropout",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Dropout rate.")
     parser.add_argument("--hid-dims",
                         type=int,
@@ -82,6 +82,10 @@ def parse_args():
                         type=int,
                         default=1,
                         help="Number of convolutional layers.")
+    parser.add_argument("--max-lc-length",
+                        type=int,
+                        default=18900/7,
+                        help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
 
 
     # training config

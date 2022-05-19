@@ -11,7 +11,8 @@ import torch
 from models import nets
 
 # SHORTEST_LC = 17546
-SHORTEST_LC = int(17546/7)  # binned
+# SHORTEST_LC = int(17546/7)  # binned
+# SHORTEST_LC = int(17500/7)    # 2500
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -60,14 +61,20 @@ def init_model(args):
     """
     if args.model == "dense":
         model = nets.SimpleNetwork(
-            input_dim=SHORTEST_LC,
+            input_dim=args.max_lc_length,
             hid_dims=args.hid_dims,
             output_dim=1,
             non_linearity=args.activation,
             dropout=args.dropout
         )
-    # if args.model == "resnet18":
-    #     model = nets.ResNet18(args.num_classes)
+    elif args.model == "ramjet":
+        model = nets.Ramjet(
+            input_dim=args.max_lc_length,
+            hid_dims=args.hid_dims,
+            output_dim=1,
+            non_linearity="LeakyReLU",
+            dropout=0.1
+        )
     # elif args.model == "resnet34":
     #     model = nets.ResNet34(args.num_classes)
     # elif args.model == "resnet50":

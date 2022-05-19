@@ -1,9 +1,7 @@
-
 import numpy as np
 
-from torchvision import transforms
-
-SHORTEST_LC = 17546
+# SHORTEST_LC = 17546
+# SHORTEST_LC = 18900 # sector 10-14
 
 class NormaliseFlux(object):
     """Normalise the flux
@@ -22,8 +20,9 @@ class NormaliseFlux(object):
 
 class Cutoff(object):
     """Restrict LC data to a certain length. Cut start or end randomly
+    TODO we could also pad to the median length
     """
-    def __init__(self, length=SHORTEST_LC):
+    def __init__(self, length=18900):
         self.length = length
     
     def __call__(self, x):
@@ -122,24 +121,3 @@ class MirrorFlip(object):
         if np.random.rand() < self.prob:
             x = np.flip(x, axis=0)
         return x
-
-
-# composed transform
-training_transform = transforms.Compose([
-    NormaliseFlux(),
-    RandomDelete(prob=0.0, delete_fraction=0.1),
-    RandomShift(prob=0.0, permute_fraction=0.1),
-    # BinData(bin_factor=3),  # bin before imputing
-    ImputeNans(method="zero"),
-    Cutoff(length=int(SHORTEST_LC/7))
-])
-
-# test tranforms - do not randomly delete or permute
-test_transform = transforms.Compose([
-    NormaliseFlux(),
-    RandomDelete(prob=0.0, delete_fraction=0.1),
-    RandomShift(prob=0.0, permute_fraction=0.1),
-    # BinData(bin_factor=3),  # bin before imputing
-    ImputeNans(method="zero"),
-    Cutoff(length=int(SHORTEST_LC/7))
-])
