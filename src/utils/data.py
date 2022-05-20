@@ -152,7 +152,7 @@ class LCData(torch.utils.data.Dataset):
             # print("injecting transit")
             pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
             # print(pl_inj)
-            x["flux"] = _inject_transit(x["flux"], pl_inj["flux"])
+            x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
             x["tic_inj"] = pl_inj["tic_id"]
             x["depth"] = pl_inj["depth"]
             x["duration"] = pl_inj["duration"]
@@ -208,7 +208,7 @@ class LCData(torch.utils.data.Dataset):
                     continue
                 if self.single_transit_only:
                     # take only the transit
-                    pl_flux = _extract_single_transit(pl_flux)
+                    pl_flux = self._extract_single_transit(pl_flux)
                     if len(pl_flux) == 0:
                         print(f"WARNING: no transit found for tic {tic_id}", pl_row)
                         print(f"skipping...")
@@ -225,6 +225,58 @@ class LCData(torch.utils.data.Dataset):
         return pl_data
 
 
+    def _extract_single_transit(self, x):
+        """Extract a single transit from the planet flux
+        Params:
+        - x (np.array): flux of the light curve
+        Returns:
+        - transit (np.array): extracted single transit (shape variable)
+        """
+        # print("extracting single transit")
+        # get the first dip
+        start_idx = np.argmax(x<1)
+        # get the end of the dip
+        length = np.argmax(x[start_idx:]==1)
+        # take one extra from either side
+        if start_idx > 0:
+            transit = x[start_idx-1:start_idx+length+1]
+        else:
+            transit = x[start_idx:start_idx+length+1]
+
+        return transit
+
+
+    def _inject_transit(self, base_flux, injected_flux):
+        """Inject a transit into a base light curve. 
+        N.B. Need to ensure both fluxes correspond to the same cadence.
+        Params:
+        - base_flux (np.array): base LC to inject into
+        - injected_flux (np.array): transit to inject (different length to base)
+        """
+        if len(injected_flux) >= len(base_flux):
+            injected_flux = injected_flux[:len(base_flux)-1]
+        
+        # ensure the injected flux is not in a missing data region. Only if single transit as the full curve may have a lot of missing data
+        if self.single_transit_only:
+            missing_data = True
+            while missing_data:
+                # add injected flux section to random part of base flux
+                start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
+                # check if there is missing data in the injected flux
+                # print("checking for missing data")
+
+                # if there is 20% missing data in the transit, try again
+                # TODO maybe adjust this parameter?      
+                missing_data = np.count_nonzero(np.isnan(base_flux[start_idx:start_idx+len(injected_flux)])) / len(injected_flux) > 0.2
+        else:
+            start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
+
+        base_flux[start_idx:start_idx+len(injected_flux)] = base_flux[start_idx:start_idx+len(injected_flux)] * injected_flux
+
+        return base_flux
+
+
+
 ##### UTILS
 
 # TODO collate fn to return a good batch of simulated and real data (do this from the data loader
@@ -235,53 +287,6 @@ def collate_fn(batch):
     batch = [x for x in batch if x[0]["flux"] is not None]   # filter on missing flux 
     batch = [x for x in batch if x[1] is not None]           # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
-
-
-def _extract_single_transit(x):
-    """Extract a single transit from the planet flux
-    Params:
-    - x (np.array): flux of the light curve
-    Returns:
-    - transit (np.array): extracted single transit (shape variable)
-    """
-    # print("extracting single transit")
-    # get the first dip
-    start_idx = np.argmax(x<1)
-    # get the end of the dip
-    length = np.argmax(x[start_idx:]==1)
-    # take one extra from either side
-    if start_idx > 0:
-        transit = x[start_idx-1:start_idx+length+1]
-    else:
-        transit = x[start_idx:start_idx+length+1]
-
-    return transit
-
-
-def _inject_transit(base_flux, injected_flux):
-    """Inject a transit into a base light curve. 
-    N.B. Need to ensure both fluxes correspond to the same cadence.
-    Params:
-    - base_flux (np.array): base LC to inject into
-    - injected_flux (np.array): transit to inject (different length to base)
-    """
-    if len(injected_flux) > len(base_flux):
-        injected_flux = injected_flux[:len(base_flux)]
-    
-    # ensure the injected flux is not in a missing data region
-    missing_data = True
-    while missing_data:
-        # add injected flux section to random part of base flux
-        start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
-        # check if there is missing data in the injected flux
-        # print("checking for missing data")
-
-        # if there is 20% missing data in the transit, try again      
-        missing_data = np.count_nonzero(np.isnan(base_flux[start_idx:start_idx+len(injected_flux)])) / len(injected_flux) > 0.2
-
-    base_flux[start_idx:start_idx+len(injected_flux)] = base_flux[start_idx:start_idx+len(injected_flux)] * injected_flux
-
-    return base_flux
 
 
 def _read_lc_csv(lc_file):
