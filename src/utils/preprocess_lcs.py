@@ -143,8 +143,9 @@ if __name__ == "__main__":
     PLANETS_SAVE_PATH = "/mnt/zfsusers/shreshth/pht_project/data/planet_csvs"
     # SECTORS = [10]
     SECTORS = list(range(10, 15))
-    BIN_FACTOR = 7
+    # SECTORS = [37]
+    BIN_FACTOR = 3
 
-    preprocess_planets_flux(PLANETS_ROOT_PATH, PLANETS_SAVE_PATH, BIN_FACTOR)
+    # preprocess_planets_flux(PLANETS_ROOT_PATH, PLANETS_SAVE_PATH, BIN_FACTOR)
     preprocess_lcs(LC_ROOT_PATH, SAVE_PATH, SECTORS, BIN_FACTOR)
 

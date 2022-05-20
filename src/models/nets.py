@@ -102,19 +102,14 @@ class Ramjet(nn.Module):
         self.block6 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout) # another pool
         self.block7 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
         
-        self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)
+        self.block8 = DenseBlock(input_dim=128*16, output_dim=512, dropout=self.dropout)        # 16/17 is the number of features in the last conv block for 2600/2700 input.
         self.block9 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)
 
-        # self.block8 = LightCurveNetworkBlock(filters=20, kernel_size=3, pooling_size=1, dropout=self.dropout)
-        # self.block9 = LightCurveNetworkBlock(filters=20, kernel_size=7, pooling_size=1, dropout=self.dropout)
-        # self.block10 = LightCurveNetworkBlock(filters=20, kernel_size=1, pooling_size=1, batch_normalization=False,
-                                            #   dropout=0)
-                               
         self.linear_out = nn.Linear(20, self.output_dim)
 
 
     def forward(self, x):
-        # (B, C, L)
+        # x: (B, LC_LEN)
         # LC_LEN = 2700 for binned sectors 10-14
         x = x.view(x.shape[0], 1, x.shape[-1])  # input shape: (B, 1, 2700)
         x = self.block0(x)              # (B, 8, 1349)

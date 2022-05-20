@@ -33,7 +33,7 @@ from utils import transforms
 
 # TRAIN_SECTORS = [10,11,12,13]
 # TEST_SECTORS = [14]
-TRAIN_SECTORS = [10]
+TRAIN_SECTORS = [37]
 TEST_SECTORS = [14]
 
 # SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
@@ -96,7 +96,7 @@ class LCData(torch.utils.data.Dataset):
         ##### planetary transits 
         if self.synthetic_prob > 0.0:
             self.pl_data = self._get_pl_data()
-
+            print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
 
     def __len__(self):
         return len(self.lc_file_list)
@@ -405,6 +405,7 @@ def get_data_loaders(args):
     batch_size = args.batch_size
     num_workers = args.num_workers
     max_lc_length = args.max_lc_length
+    multi_transit = args.multi_transit
     pin_memory = True
 
     # composed transform
@@ -433,7 +434,7 @@ def get_data_loaders(args):
         sectors=TRAIN_SECTORS,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
-        single_transit_only=True,
+        single_transit_only=not multi_transit,
         transform=training_transform
     )
     indices = [i for i in range(len(train_dataset))]
@@ -446,14 +447,13 @@ def get_data_loaders(args):
         sectors=TEST_SECTORS,
         synthetic_prob=0.0,             # TODO have synthetics in test as well?
         eb_prob=0.0,
-        single_transit_only=True,       # irrelevant for test set
+        single_transit_only= not multi_transit,       # irrelevant for test set
         transform=test_transform
     )
 
     print(f'Size of training set: {len(train_set)}')
     print(f'Size of val set: {len(val_set)}')
     print(f'Size of test set: {len(test_set)}')
-    print(f"training/val sets have {synthetic_prob} proportion of synthetic data")
 
     train_dataloader = torch.utils.data.DataLoader(train_set,
                                                 batch_size=batch_size,

@@ -54,13 +54,15 @@ def parse_args():
                         type=float,
                         default=0.0,
                         help="Fraction of light curve to be randomly deleted.")
-
+    parser.add_argument("--multi-transit",
+                        action="store_true",
+                        help="take all transits in light curve from simulated data.")
                 
     # model config
     parser.add_argument("--model",
                         type=str,
                         default="ramjet",
-                        help="Model type.")
+                        help="Model type: (ramjet, dense,).")
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,
@@ -69,7 +71,7 @@ def parse_args():
                         type=int,
                         nargs="*",
                         default=[64],
-                        help="Hidden layer dimensions, takes multiple arguments")
+                        help="Hidden layer dimensions, takes multiple arguments e.g. --hid-dims 64 32")
     parser.add_argument("--activation",
                         type=str,
                         default="ReLU",
@@ -84,7 +86,7 @@ def parse_args():
                         help="Number of convolutional layers.")
     parser.add_argument("--max-lc-length",
                         type=int,
-                        default=2700,
+                        default=2600,
                         help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
 
 
@@ -110,7 +112,7 @@ def parse_args():
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
-                        default=50,
+                        default=500,
                         help="number of epochs")
     parser.add_argument("--lr",
                         type=float,
@@ -126,7 +128,7 @@ def parse_args():
                         help="momentum")
     parser.add_argument("--patience",
                         type=int,
-                        default=10,
+                        default=100000,
                         help="number of epochs patience")
     
     # evaluation

@@ -41,6 +41,9 @@ def main(args):
     # initialise models, optimizers, data
     model = utils.init_model(args)
     optimizer, criterion = utils.init_optim(args, model)
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
+    print(f"Number of model parameters: {num_params}")
+    wandb.config.num_params = num_params     # add to wandb config
     print(model)
     print(optimizer)
     print(criterion)

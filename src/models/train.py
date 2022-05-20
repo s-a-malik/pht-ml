@@ -60,7 +60,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             logits = model(flux)
             prob = torch.sigmoid(logits)
             # preds = np.where(probs > 0.5, 1, 0)
-            pred = (prob > 0.4).float()
+            pred = (prob > 0.5).float()
             y_bin = (y > 0.5).float()
 
             # compute loss on logits
@@ -94,7 +94,8 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             # print("total", total)
 
             t.update()
-
+    # print("targets", targets)
+    # print("pred probs", probs)
     acc = accuracy_score(targets_bin, preds)
     prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds, average="binary")
     auc = roc_auc_score(targets_bin, probs)
