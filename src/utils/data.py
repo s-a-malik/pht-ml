@@ -98,9 +98,11 @@ class LCData(torch.utils.data.Dataset):
 
            
         self.cache = {} # cache for __getitem__
-        # fill cache
-        for i in range(len(self)):
-            self.__getitem__(i)
+        print("filling cache")
+        with trange(len(self)) as t:
+            for i in range(len(self)):
+                self.__getitem__(i)
+                t.update()
 
     def __len__(self):
         return len(self.lc_file_list)

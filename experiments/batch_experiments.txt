@@ -1,4 +1,4 @@
 # Run multiple experiments on cluster
 # each line beginning with - is an experiment.
---multi-transit
---multi-transit --model dense
+--multi-transit --num-workers 4
+# --multi-transit --model dense
