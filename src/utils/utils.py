@@ -13,6 +13,7 @@ from models import nets
 # SHORTEST_LC = 17546
 # SHORTEST_LC = int(17546/7)  # binned
 # SHORTEST_LC = int(17500/7)    # 2500
+SHORTEST_LC = 18900
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -61,7 +62,7 @@ def init_model(args):
     """
     if args.model == "dense":
         model = nets.SimpleNetwork(
-            input_dim=args.max_lc_length,
+            input_dim=int(SHORTEST_LC / args.bin_factor),
             hid_dims=args.hid_dims,
             output_dim=1,
             non_linearity=args.activation,
@@ -69,7 +70,7 @@ def init_model(args):
         )
     elif args.model == "ramjet":
         model = nets.Ramjet(
-            input_dim=args.max_lc_length,
+            bin_factor=args.bin_factor,
             output_dim=1,
             dropout=0.1
         )
