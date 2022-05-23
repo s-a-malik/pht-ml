@@ -1,6 +1,6 @@
 # Run multiple experiments on cluster
 # each line beginning with - is an experiment.
 # --multi-transit --num-workers 4
---model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4
-# --num-workers 4
+# --model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4
+--num-workers 4 --no-cache
 # --multi-transit --model dense

@@ -46,7 +46,7 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, data_root_path, sectors, bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None):
+    def __init__(self, data_root_path, sectors, bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None, store_cache=True):
         """
         Params:
         - data_root_path (str): path to data directory 
@@ -66,6 +66,7 @@ class LCData(torch.utils.data.Dataset):
         self.eb_prob = eb_prob
         self.single_transit_only = single_transit_only
         self.transform = transform
+        self.store_cache = store_cache
 
         ####### LC data
 
@@ -99,13 +100,14 @@ class LCData(torch.utils.data.Dataset):
             self.pl_data = self._get_pl_data()
             print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
 
-           
-        self.cache = {} # cache for __getitem__
-        print("filling cache")
-        with trange(len(self)) as t:
-            for i in range(len(self)):
-                self.__getitem__(i)
-                t.update()
+        ##### cache data
+        if self.store_cache:
+            self.cache = {}
+            print("filling cache")
+            with trange(len(self)) as t:
+                for i in range(len(self)):
+                    self.__getitem__(i)
+                    t.update()
 
 
     def __len__(self):
@@ -183,8 +185,9 @@ class LCData(torch.utils.data.Dataset):
         # turn into float
         x["flux"] = torch.tensor(x["flux"], dtype=torch.float)
         
-        # add to cache 
-        self.cache[idx] = (x, y)
+        if self.store_cache:
+            # add to cache 
+            self.cache[idx] = (x, y)
 
         return x, y
 
@@ -420,6 +423,7 @@ def get_data_loaders(args):
     eb_prob = args.eb_prob
     batch_size = args.batch_size
     num_workers = args.num_workers
+    cache = not args.no_cache
     # max_lc_length = args.max_lc_length
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
@@ -453,7 +457,8 @@ def get_data_loaders(args):
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
         single_transit_only=not multi_transit,
-        transform=training_transform
+        transform=training_transform,
+        store_cache=cache
     )
     indices = [i for i in range(len(train_dataset))]
     train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
@@ -467,7 +472,8 @@ def get_data_loaders(args):
         synthetic_prob=0.0,             # TODO have synthetics in test as well?
         eb_prob=0.0,
         single_transit_only= not multi_transit,       # irrelevant for test set
-        transform=test_transform
+        transform=test_transform,
+        store_cache=cache
     )
 
     print(f'Size of training set: {len(train_set)}')
@@ -509,6 +515,7 @@ if __name__ == "__main__":
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--num-workers", type=int, default=4)
     ap.add_argument("---max-lc-length", type=int, default=18900/7)
+    ap.add_argument("--no-cache", action="store_true")
     args = ap.parse_args()
 
     train_dataloader, val_dataloader, test_dataloader = get_data_loaders(args)

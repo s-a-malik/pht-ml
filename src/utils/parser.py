@@ -38,6 +38,9 @@ def parse_args():
                         type=int,
                         default=0,
                         help="number of data loading workers") 
+    parser.add_argument("--no-cache",
+                        action="store_true",
+                        help="Do not use cache for dataloader")
     parser.add_argument("--bin-factor",
                         type=int,
                         default=7,
