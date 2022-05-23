@@ -31,13 +31,14 @@ from utils import transforms
 
 # SECTORS = list(range(10, 39))
 
-# TRAIN_SECTORS = [10,11,12,13]
+TRAIN_SECTORS = [10,11,12,13]
 # TEST_SECTORS = [14]
-TRAIN_SECTORS = [37]
+# TRAIN_SECTORS = [37]
 TEST_SECTORS = [14]
 
 # SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = int(18900/7) # binned sector 10-14
+SHORTEST_LC = 18900
 
 #### DATASET CLASSES
 
@@ -45,11 +46,12 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, data_root_path, sectors, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None):
+    def __init__(self, data_root_path, sectors, bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None):
         """
         Params:
         - data_root_path (str): path to data directory 
         - sectors (list[int]): list of sectors to load
+        - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
         - single_transit_only (bool): only use single transits in synthetic data
@@ -59,6 +61,7 @@ class LCData(torch.utils.data.Dataset):
 
         self.data_root_path = data_root_path
         self.sectors = sectors
+        self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
         self.single_transit_only = single_transit_only
@@ -70,7 +73,7 @@ class LCData(torch.utils.data.Dataset):
         self.lc_file_list = []
         for sector in sectors:
             # print(f"sector: {sector}")
-            new_files = glob(f"{self.data_root_path}/lc_csvs/Sector{sector}/*.csv", recursive=True)
+            new_files = glob(f"{self.data_root_path}/lc_csvs/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
 
@@ -103,6 +106,7 @@ class LCData(torch.utils.data.Dataset):
             for i in range(len(self)):
                 self.__getitem__(i)
                 t.update()
+
 
     def __len__(self):
         return len(self.lc_file_list)
@@ -190,8 +194,8 @@ class LCData(torch.utils.data.Dataset):
         """
         # simulated transit info
         pl_table = Table.read(f"{self.data_root_path}/planet_csvs/ete6_planet_data.txt", format='ascii',comment='#')
-        pl_files = glob(f"{self.data_root_path}/planet_csvs/Planets_*.csv")
-        print(f"found {len(pl_files)} planet flux files")
+        pl_files = glob(f"{self.data_root_path}/planet_csvs/Planets_*binfac-{self.bin_factor}.csv")
+        print(f"found {len(pl_files)} planet flux files for binfac {self.bin_factor}")
         
         # load planetary transits into RAM
         pl_data = []   # list of dicts with metadata
@@ -411,11 +415,13 @@ def get_data_loaders(args):
     data_root_path = args.data_path
     val_size = args.val_size
     seed = args.seed
+    bin_factor = args.bin_factor
     synthetic_prob = args.synthetic_prob
     eb_prob = args.eb_prob
     batch_size = args.batch_size
     num_workers = args.num_workers
-    max_lc_length = args.max_lc_length
+    # max_lc_length = args.max_lc_length
+    max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
     pin_memory = True
 
@@ -443,6 +449,7 @@ def get_data_loaders(args):
     train_dataset = LCData(
         data_root_path=data_root_path,
         sectors=TRAIN_SECTORS,
+        bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
         single_transit_only=not multi_transit,
@@ -456,6 +463,7 @@ def get_data_loaders(args):
     test_set = LCData(
         data_root_path=data_root_path,
         sectors=TEST_SECTORS,
+        bin_factor=bin_factor,
         synthetic_prob=0.0,             # TODO have synthetics in test as well?
         eb_prob=0.0,
         single_transit_only= not multi_transit,       # irrelevant for test set
@@ -494,7 +502,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
     ap.add_argument("--val-size", type=float, default=0.2)
-    ap.add_argument("--seed", type=int, default=32)
+    ap.add_argument("--bin-factor", type=int, default=7)
+    ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--synthetic-prob", type=float, default=0.5)
     ap.add_argument("--eb-prob", type=float, default=0.0)
     ap.add_argument("--batch-size", type=int, default=64)

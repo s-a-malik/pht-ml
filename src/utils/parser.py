@@ -84,10 +84,10 @@ def parse_args():
                         type=int,
                         default=1,
                         help="Number of convolutional layers.")
-    parser.add_argument("--max-lc-length",
-                        type=int,
-                        default=2600,
-                        help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
+    # parser.add_argument("--max-lc-length",
+    #                     type=int,
+    #                     default=2600,
+    #                     help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
 
 
     # training config
@@ -108,7 +108,7 @@ def parse_args():
                         help="random seed")
     parser.add_argument("--batch-size",
                         type=int,
-                        default=64,
+                        default=256,
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
