@@ -64,8 +64,6 @@ class LCData(torch.utils.data.Dataset):
         self.single_transit_only = single_transit_only
         self.transform = transform
 
-        self.cache = {} # cache for __getitem__
-
         ####### LC data
 
         # get list of all lc files
@@ -97,6 +95,12 @@ class LCData(torch.utils.data.Dataset):
         if self.synthetic_prob > 0.0:
             self.pl_data = self._get_pl_data()
             print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
+
+           
+        self.cache = {} # cache for __getitem__
+        # fill cache
+        for i in range(len(self)):
+            self.__getitem__(i)
 
     def __len__(self):
         return len(self.lc_file_list)
