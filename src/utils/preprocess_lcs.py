@@ -1,6 +1,7 @@
 """Preprocess LC and injected planet files for reducing compute/memory requirements during training.
 """
 import os
+import argparse
 
 from glob import glob
 
@@ -136,16 +137,26 @@ def _read_lc(lc_file):
 
 
 if __name__ == "__main__":
-    LC_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/TESS"
-    PLANETS_ROOT_PATH = "/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets"
-    LABELS_ROOT_PATH = "/mnt/zfsusers/shreshth/pht_project/data/pht_labels"
-    SAVE_PATH = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs"
-    PLANETS_SAVE_PATH = "/mnt/zfsusers/shreshth/pht_project/data/planet_csvs"
+    # addqueue -c "preprocess lcs" -m 2 -q planet -s ../shell_scripts/preprocess_lcs.sh
+    # manually change which sectors here
     # SECTORS = [10]
     SECTORS = list(range(10, 15))
-    # SECTORS = [37]
-    BIN_FACTOR = 3
 
-    # preprocess_planets_flux(PLANETS_ROOT_PATH, PLANETS_SAVE_PATH, BIN_FACTOR)
-    preprocess_lcs(LC_ROOT_PATH, SAVE_PATH, SECTORS, BIN_FACTOR)
+    # parse args
+    ap = argparse.ArgumentParser(description="test dataloader")
+    ap.add_argument("--lc-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/TESS")
+    ap.add_argument("--planets-root-path", type=str, default="/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets")
+    ap.add_argument("--labels-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels")
+    ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs")
+    ap.add_argument("--planets-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/planet_csvs")
+    ap.add_argument("--bin-factor", type=int, default=7)
+    ap.add_argument("--skip-planets", action="store_true")
+    args = ap.parse_args()
+    print(args)
+
+    if not args.skip_planets:
+        print("\nPreprocessing planets")
+        preprocess_planets_flux(args.planets_root_path, args.planets_save_path, args.bin_factor)
+    print("\nPreprocessing light curves")
+    preprocess_lcs(args.lc_root_path, args.save_path, SECTORS, args.bin_factor)
 
