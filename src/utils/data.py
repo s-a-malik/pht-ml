@@ -31,10 +31,12 @@ from utils import transforms
 
 # SECTORS = list(range(10, 39))
 
-TRAIN_SECTORS = [10,11,12,13]
+TRAIN_SECTORS_DEBUG = [10]
+TRAIN_SECTORS_FULL = [10,11,12,13]
 # TEST_SECTORS = [14]
 # TRAIN_SECTORS = [37]
-TEST_SECTORS = [14]
+TEST_SECTORS_DEBUG = [14]
+TEST_SECTORS_FULL = [14]
 
 # SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = int(18900/7) # binned sector 10-14
@@ -428,6 +430,7 @@ def get_data_loaders(args):
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
     pin_memory = True
+    debug = args.debug
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
@@ -448,6 +451,11 @@ def get_data_loaders(args):
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length)
     ])
+
+    # sectors to use
+    train_sectors = TRAIN_SECTORS_DEBUG if debug else TRAIN_SECTORS_FULL
+    test_sectors = TEST_SECTORS_DEBUG if debug else TEST_SECTORS_FULL
+
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_dataset = LCData(

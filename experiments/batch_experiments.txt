@@ -1,7 +1,9 @@
 # Run multiple experiments on cluster
 # each line beginning with - is an experiment.
+# for debugging/testing use --no-cache --wandb-offline --debug
+
 # --multi-transit --num-workers 4
 # --model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4
 # --num-workers 4 --no-cache
---num-workers 4 --bin-factor 3 --no-cache
+--num-workers 4 --bin-factor 3
 # --multi-transit --model dense
