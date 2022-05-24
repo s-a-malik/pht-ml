@@ -1,5 +1,6 @@
 """main.py
 Primary entry point for the pht-ml package.
+run on cluster with GPU e.g.:  addqueue -c "comment" -m 4 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 """
 import os
 import wandb
@@ -25,8 +26,8 @@ def main(args):
     os.makedirs(results_path, exist_ok=True)
 
     # init wandb
-    # os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
-    os.environ['WANDB_MODE'] = 'offline'
+    os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
+    # os.environ['WANDB_MODE'] = 'offline'
     # change artifact cache directory to scratch
     os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './') + '.cache/wandb'
     job_type = "eval" if args.evaluate else "train"
@@ -41,21 +42,14 @@ def main(args):
     # initialise models, optimizers, data
     model = utils.init_model(args)
     optimizer, criterion = utils.init_optim(args, model)
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
+    print(f"Number of model parameters: {num_params}")
+    wandb.config.num_params = num_params     # add to wandb config
     print(model)
     print(optimizer)
     print(criterion)
 
-    # TODO add data args to data loader call directly from argparse
-    train_loader, val_loader, test_loader = get_data_loaders(
-        data_root_path=args.lc_root_path,
-        labels_root_path=args.labels_root_path,
-        val_size=args.val_size,
-        test_size=args.test_size,
-        seed=args.seed,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=False
-    )
+    train_loader, val_loader, test_loader = get_data_loaders(args)
 
     # files for checkpoints
     scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
@@ -83,7 +77,7 @@ def main(args):
 
     # evaluate on test set
     with torch.no_grad():
-        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_sims, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
+        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_tic_injs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
 
     wandb.log({
         "test_loss": test_loss,
@@ -95,14 +89,16 @@ def main(args):
         "test_total": test_total,
         "test_tics": test_tics,
         "test_secs": test_secs,
-        "test_sims": test_sims,
+        "test_tic_injs": test_tic_injs,
         "test_pred": test_pred,
         "test_targets": test_targets
-        })
+    })
 
-    # TODO save to a results file?
+    # save to a results file
+    # df = pd.DataFrame({"pred": test_pred, "targets": test_targets, "tics": test_tics, "secs": test_secs, "tic_injs": test_tic_injs})
+    # df.to_csv(f"{results_path}/results.csv", index=False)
 
-    # finish
+    # finish wandb
     run.finish()
 
 

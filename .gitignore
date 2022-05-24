@@ -133,7 +133,7 @@ dmypy.json
 .zshrc
 
 # wandb
-.wandb/
+*wandb/
 
 # folders
 data/

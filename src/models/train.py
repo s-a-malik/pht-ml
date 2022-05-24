@@ -41,7 +41,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     preds = []
     tics = []
     secs = []
-    sims = []
+    tic_injs = []
     total = 0
     if task in ["val", "test"]:
         model.eval()
@@ -53,18 +53,19 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
     with trange(len(data_loader)) as t:
         for i, batch in enumerate(data_loader):
             # unpack batch from dataloader
-            (x, tic, sec, sim), y = batch
-            x = x.to(device)
+            x, y = batch
+            flux = x["flux"]
+            flux = flux.to(device)
             y = y.to(device)
-            logits = model(x)
+            logits = model(flux)
             prob = torch.sigmoid(logits)
             # preds = np.where(probs > 0.5, 1, 0)
-            pred = (prob > 0.4).float()
+            pred = (prob > 0.5).float()
             y_bin = (y > 0.5).float()
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
-            avg_loss.update(loss.data.cpu().item(), x.size(0))     
+            avg_loss.update(loss.data.cpu().item(), flux.size(0))     
             
             if task == "train":
                 # compute gradient and do SGD step
@@ -80,9 +81,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             targets_bin += y_bin.tolist()
             probs += np.squeeze(prob).tolist()
             preds += np.squeeze(pred).tolist()
-            tics += tic.tolist()
-            secs += sec.tolist()
-            sims += sim.tolist()
+            tics += x["tic"].tolist()
+            secs += x["sec"].tolist()
+            tic_injs += x["tic_inj"].tolist()
             total += logits.size(0)
             # print("targets", y)
             # print("targets_bin", y_bin)
@@ -93,14 +94,15 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train"):
             # print("total", total)
 
             t.update()
-
+    # print("targets", targets)
+    # print("pred probs", probs)
     acc = accuracy_score(targets_bin, preds)
     prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds, average="binary")
     auc = roc_auc_score(targets_bin, probs)
     # TODO for test set, should get more granulater metrics - probs can do this analysis afterwards from the raw results. 
 
     if task == "test":
-        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, sims, total
+        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total
     else:
         return avg_loss.avg, acc, f1, prec, rec, auc
 
@@ -148,7 +150,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
-                data_loader=train_loader,
+                data_loader=val_loader,
                 device=args.device,
                 task="val")
 
