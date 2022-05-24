@@ -28,7 +28,7 @@ import astropy.io.fits as pf
 from astropy.table import Table
 
 from utils import transforms
-
+# import transforms
 
 TRAIN_SECTORS_DEBUG = [10]
 TRAIN_SECTORS_FULL = [10,11,12,13]
@@ -46,7 +46,17 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, data_root_path, data_split="train", bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None, store_cache=True):
+    def __init__(
+        self,
+        data_root_path="/mnt/zfsusers/shreshth/pht_project/data",
+        data_split="train",
+        bin_factor=7,
+        synthetic_prob=0.0,
+        eb_prob=0.0,
+        single_transit_only=True,
+        transform=None,
+        store_cache=True
+        ):
         """
         Params:
         - data_root_path (str): path to data directory 
@@ -56,6 +66,7 @@ class LCData(torch.utils.data.Dataset):
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
         - single_transit_only (bool): only use single transits in synthetic data
         - transform (callable): transform to apply to the data
+        - store_cache (bool): whether to store all the data in RAM in advance
         """
         super(LCData, self).__init__()
 
@@ -219,6 +230,10 @@ class LCData(torch.utils.data.Dataset):
             for i, pl_file in enumerate(pl_files):
                 # extract tic id
                 tic_id = int(pl_file.split("/")[-1].split("_")[1].split(".")[0])
+                # check if we should include this planet
+                if not self._is_planet_in_data_split(tic_id):
+                    continue
+
                 # look up in table
                 pl_row = pl_table[pl_table['col1'] == tic_id]
 
@@ -240,13 +255,28 @@ class LCData(torch.utils.data.Dataset):
                 
                 pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
                 t.update()
-                # if i > 10:
-                #     break
+
     
-        print(f"Loaded {len(pl_data)} simulated transits")
+        print(f"Loaded {len(pl_data)} simulated transits for {self.data_split} data split")
         # print("examples", pl_data[-5:])
 
         return pl_data
+
+
+    def _is_planet_in_data_split(self, tic_id):
+        """Checks if a planet flux should be included in this data for simulation.
+        Currently just uses the tic_id to select 1/4th of the available data
+        """
+        if self.data_split in ["train", "train_debug"]:
+            if tic_id % 4 == 0:
+                return True
+            else:
+                return False
+        elif self.data_split in ["test", "test_debug"]:
+            if tic_id % 4 == 0:
+                return False
+            else:
+                return True
 
 
     def _extract_single_transit(self, x):
@@ -482,7 +512,7 @@ def get_data_loaders(args):
         data_root_path=data_root_path,
         data_split="test_debug" if debug else "test",
         bin_factor=bin_factor,
-        synthetic_prob=0.0,             # TODO have synthetics in test as well?
+        synthetic_prob=0.5,             # TODO have synthetics in test as well? yes probably
         eb_prob=0.0,
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
@@ -526,9 +556,9 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--synthetic-prob", type=float, default=0.5)
     ap.add_argument("--eb-prob", type=float, default=0.0)
-    ap.add_argument("--batch-size", type=int, default=64)
+    ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--num-workers", type=int, default=4)
-    ap.add_argument("---max-lc-length", type=int, default=18900/7)
+    ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
     args = ap.parse_args()
 

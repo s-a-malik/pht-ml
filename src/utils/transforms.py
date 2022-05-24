@@ -126,3 +126,16 @@ class MirrorFlip(object):
         if np.random.rand() < self.prob:
             x = np.flip(x, axis=0)
         return x
+
+
+class GaussianNoise(object):
+    """Add Gaussian noise to the data
+    """
+    def __init__(self, prob, std=0.1):
+        self.prob = prob
+        self.std = std
+    
+    def __call__(self, x):
+        if np.random.rand() < self.prob:
+            x += np.random.normal(0, self.std, len(x))
+        return x
