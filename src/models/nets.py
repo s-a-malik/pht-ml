@@ -14,7 +14,7 @@ class RamjetBin3(nn.Module):
     Identifying Planetary Transit Candidates in TESS Full-frame Image Light Curves via Convolutional Neural Networks, Olmschenk 2021
     https://iopscience.iop.org/article/10.3847/1538-3881/abf4c6
     """
-    def __init__(self, output_dim=1, dropout=0.1):
+    def __init__(self, input_dim=6300, output_dim=1, dropout=0.1):
         super(RamjetBin3, self).__init__()
     
         self.output_dim = output_dim
@@ -32,7 +32,12 @@ class RamjetBin3(nn.Module):
         self.block8 = ConvBlock(in_channels=256, out_channels=256, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block9 = ConvBlock(in_channels=256, out_channels=256, kernel_size=3, pooling_size=1, dropout=self.dropout)
 
-        self.block10 = DenseBlock(input_dim=256*8, output_dim=512, dropout=self.dropout)
+        if self.input_dim = 6300:
+            self.block10 = DenseBlock(input_dim=256*8, output_dim=512, dropout=self.dropout)
+        elif self.input_dim = 5833:
+            self.block10 = DenseBlock(input_dim=256*6, output_dim=512, dropout=self.dropout)
+        else:
+            raise ValueError('input_dim not supported')
         self.block11 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)
 
         self.linear_out = nn.Linear(20, self.output_dim)
@@ -65,7 +70,7 @@ class RamjetBin7(nn.Module):
     Identifying Planetary Transit Candidates in TESS Full-frame Image Light Curves via Convolutional Neural Networks, Olmschenk 2021
     https://iopscience.iop.org/article/10.3847/1538-3881/abf4c6
     """
-    def __init__(self, output_dim=1, dropout=0.1):
+    def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
         super(RamjetBin7, self).__init__()
     
         self.output_dim = output_dim
@@ -80,8 +85,13 @@ class RamjetBin7(nn.Module):
         self.block5 = ConvBlock(in_channels=64, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block6 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout) # another pool
         self.block7 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
-        
-        self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)        # 16/17 is the number of features in the last conv block for 2600/2700 input.
+
+        if self.input_dim = 2700:
+            self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)
+        elif self.input_dim = 2500:
+            self.block8 = DenseBlock(input_dim=128*15, output_dim=512, dropout=self.dropout)
+        else:
+            raise ValueError('input_dim not supported')
         self.block9 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)
 
         self.linear_out = nn.Linear(20, self.output_dim)
