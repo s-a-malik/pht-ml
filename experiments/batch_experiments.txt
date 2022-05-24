@@ -1,6 +1,7 @@
 # Run multiple experiments on cluster
 # each line beginning with - is an experiment.
 # for debugging/testing use --no-cache --wandb-offline --debug
+# run command e.g. addqueue -c "bin factor 3 test" -m 4 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 
 # --multi-transit --num-workers 4
 # --model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4

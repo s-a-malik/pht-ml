@@ -1,5 +1,6 @@
 """main.py
 Primary entry point for the pht-ml package.
+run on cluster with GPU e.g.:  addqueue -c "comment" -m 4 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 """
 import os
 import wandb

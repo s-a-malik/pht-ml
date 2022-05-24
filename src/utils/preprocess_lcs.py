@@ -137,10 +137,10 @@ def _read_lc(lc_file):
 
 
 if __name__ == "__main__":
-    # addqueue -c "preprocess lcs" -m 2 -q planet -s ../shell_scripts/preprocess_lcs.sh
+    # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
     # SECTORS = [10]
-    SECTORS = list(range(15, 38))
+    SECTORS = list(range(31, 38))
 
     # parse args
     ap = argparse.ArgumentParser(description="test dataloader")
