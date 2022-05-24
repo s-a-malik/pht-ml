@@ -135,9 +135,9 @@ class LCData(torch.utils.data.Dataset):
         - y (float): volunteer confidence score (1 if synthetic transit)
         """
         # check if we have this data cached
-        if idx in self.cache:
-            # print("cached", idx, "total", len(self.cache))
-            return self.cache[idx]
+        if self.store_cache:
+            if idx in self.cache:
+                return self.cache[idx]
 
         # get lc file
         lc_file = self.lc_file_list[idx]

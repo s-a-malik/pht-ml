@@ -13,7 +13,7 @@ from models import nets
 # SHORTEST_LC = 17546
 # SHORTEST_LC = int(17546/7)  # binned
 # SHORTEST_LC = int(17500/7)    # 2500
-SHORTEST_LC = 18900
+SHORTEST_LC = 18900 # sectors 10-14
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -69,15 +69,16 @@ def init_model(args):
             dropout=args.dropout
         )
     elif args.model == "ramjet":
-        model = nets.Ramjet(
-            bin_factor=args.bin_factor,
-            output_dim=1,
-            dropout=0.1
-        )
-    # elif args.model == "resnet34":
-    #     model = nets.ResNet34(args.num_classes)
-    # elif args.model == "resnet50":
-    #     model = nets.ResNet50(args.num_classes)
+        if args.bin_factor == 3:
+            model = nets.RamjetBin3(
+                output_dim=1,
+                dropout=0.1
+            )
+        elif args.bin_factor == 7:
+            model = nets.RamjetBin7(
+                output_dim=1,
+                dropout=0.1
+            )
     else:
         raise NameError(f"Unknown model {args.model}")
     model.to(args.device)
