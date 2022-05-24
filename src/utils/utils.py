@@ -10,9 +10,6 @@ import torch
 
 from models import nets
 
-# SHORTEST_LC = 17546
-# SHORTEST_LC = int(17546/7)  # binned
-# SHORTEST_LC = int(17500/7)    # 2500
 SHORTEST_LC = 18900 # sectors 10-14
 
 class AverageMeter(object):
@@ -83,10 +80,8 @@ def init_model(args):
         raise NameError(f"Unknown model {args.model}")
     model.to(args.device)
 
-
     return model
 
-    pass
 
 def load_checkpoint(model, optimizer, device, checkpoint_file: str):
     """Loads a model checkpoint.
@@ -106,7 +101,7 @@ def load_checkpoint(model, optimizer, device, checkpoint_file: str):
 
     return model, optimizer
 
-# save/load checkpoints
+
 def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     """Saves a model checkpoint to file. Keeps most recent and best model.
     Params:

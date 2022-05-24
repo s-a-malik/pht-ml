@@ -38,7 +38,7 @@ TEST_SECTORS_FULL = [14]
 
 # SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = int(18900/7) # binned sector 10-14
-SHORTEST_LC = 18900
+SHORTEST_LC = 18900 # binned 7 sector 10-14
 
 #### DATASET CLASSES
 
@@ -46,11 +46,11 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, data_root_path, sectors, bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None, store_cache=True):
+    def __init__(self, data_root_path, data_split="train", bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None, store_cache=True):
         """
         Params:
         - data_root_path (str): path to data directory 
-        - sectors (list[int]): list of sectors to load
+        - data_split (bool): which data split to load (train/test/train_debug/test_debug)
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
@@ -60,13 +60,24 @@ class LCData(torch.utils.data.Dataset):
         super(LCData, self).__init__()
 
         self.data_root_path = data_root_path
-        self.sectors = sectors
+        self.data_split = data_split
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
         self.single_transit_only = single_transit_only
         self.transform = transform
         self.store_cache = store_cache
+        
+        if self.data_split == "train":
+            sectors = TRAIN_SECTORS_FULL
+        elif self.data_split == "test":
+            sectors = TEST_SECTORS_FULL
+        elif self.data_split == "train_debug":
+            sectors = TRAIN_SECTORS_DEBUG
+        elif self.data_split == "test_debug":
+            sectors = TEST_SECTORS_DEBUG
+        else:
+            raise ValueError(f"Invalid data split {data_split}")
 
         ####### LC data
 
@@ -450,15 +461,11 @@ def get_data_loaders(args):
         transforms.Cutoff(length=max_lc_length)
     ])
 
-    # sectors to use
-    train_sectors = TRAIN_SECTORS_DEBUG if debug else TRAIN_SECTORS_FULL
-    test_sectors = TEST_SECTORS_DEBUG if debug else TEST_SECTORS_FULL
-
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_dataset = LCData(
         data_root_path=data_root_path,
-        sectors=train_sectors,
+        data_split="train_debug" if debug else "train",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
@@ -473,11 +480,11 @@ def get_data_loaders(args):
 
     test_set = LCData(
         data_root_path=data_root_path,
-        sectors=test_sectors,
+        data_split="test_debug" if debug else "test",
         bin_factor=bin_factor,
         synthetic_prob=0.0,             # TODO have synthetics in test as well?
         eb_prob=0.0,
-        single_transit_only= not multi_transit,       # irrelevant for test set
+        single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
         store_cache=cache
     )
@@ -513,6 +520,7 @@ if __name__ == "__main__":
     # parse data args only
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
+    ap.add_argument("--debug", action="store_true")
     ap.add_argument("--val-size", type=float, default=0.2)
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--seed", type=int, default=123)
