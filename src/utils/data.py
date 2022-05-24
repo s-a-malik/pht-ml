@@ -29,12 +29,10 @@ from astropy.table import Table
 
 from utils import transforms
 
-# SECTORS = list(range(10, 39))
 
 TRAIN_SECTORS_DEBUG = [10]
 TRAIN_SECTORS_FULL = [10,11,12,13]
-# TEST_SECTORS = [14]
-# TRAIN_SECTORS = [37]
+
 TEST_SECTORS_DEBUG = [14]
 TEST_SECTORS_FULL = [14]
 
@@ -460,7 +458,7 @@ def get_data_loaders(args):
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_dataset = LCData(
         data_root_path=data_root_path,
-        sectors=TRAIN_SECTORS,
+        sectors=train_sectors,
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
@@ -475,7 +473,7 @@ def get_data_loaders(args):
 
     test_set = LCData(
         data_root_path=data_root_path,
-        sectors=TEST_SECTORS,
+        sectors=test_sectors,
         bin_factor=bin_factor,
         synthetic_prob=0.0,             # TODO have synthetics in test as well?
         eb_prob=0.0,
