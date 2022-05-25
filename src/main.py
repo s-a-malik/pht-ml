@@ -10,7 +10,7 @@ import pandas as pd
 
 import torch
 
-from utils import load_checkpoint
+from utils.utils import load_checkpoint
 from utils.parser import parse_args
 from utils.data import get_data_loaders
 from models.train import training_run, evaluate, init_model, init_optim

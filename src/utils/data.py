@@ -24,10 +24,10 @@ from sklearn.model_selection import train_test_split as split
 import astropy.io.fits as pf
 from astropy.table import Table
 
-import transforms
-from utils import plot_lc
-# from utils import transforms
-# from utils.utils import plot_lc
+# import transforms
+# from utils import plot_lc
+from utils import transforms
+from utils.utils import plot_lc
 
 
 TRAIN_SECTORS_DEBUG = [10]
