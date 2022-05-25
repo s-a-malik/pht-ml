@@ -28,7 +28,7 @@ import astropy.io.fits as pf
 from astropy.table import Table
 
 from utils import transforms
-
+# import transforms
 
 TRAIN_SECTORS_DEBUG = [10]
 TRAIN_SECTORS_FULL = [10,11,12,13]
@@ -522,6 +522,8 @@ if __name__ == "__main__":
     ap.add_argument("--num-workers", type=int, default=4)
     ap.add_argument("---max-lc-length", type=int, default=18900/7)
     ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--multi-transit", action="store_true")
+    ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
 
     train_dataloader, val_dataloader, test_dataloader = get_data_loaders(args)
