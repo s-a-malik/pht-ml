@@ -9,6 +9,7 @@ import csv
 import time
 from glob import glob
 import functools
+from copy import deepcopy
 
 from tqdm.autonotebook import trange
 
@@ -23,22 +24,25 @@ from sklearn.model_selection import train_test_split as split
 import astropy.io.fits as pf
 from astropy.table import Table
 
-# import transforms
-from utils import transforms
-from utils.utils import plot_lc
+import transforms
+from utils import plot_lc
+# from utils import transforms
+# from utils.utils import plot_lc
 
 
 TRAIN_SECTORS_DEBUG = [10]
 TRAIN_SECTORS_FULL = [10,11,12,13,14]
+# TRAIN_SECTORS_FULL = [10,11,12]
 
-VAL_SECTORS_DEBUG = [11]
-VAL_SECTORS_FULL = [14,15,16]
+VAL_SECTORS_DEBUG = [13]
+VAL_SECTORS_FULL = [15,16]
 
-TEST_SECTORS_DEBUG = [17]
+TEST_SECTORS_DEBUG = [14]
 TEST_SECTORS_FULL = [17,18,19]
+# TEST_SECTORS_FULL = [14]
 
-# SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
-SHORTEST_LC = 18900 # binned 7 sector 10-14
+SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
+# SHORTEST_LC = 18900 # binned 7 sector 10-14
 
 #### DATASET CLASSES
 
@@ -114,15 +118,13 @@ class LCData(torch.utils.data.Dataset):
             print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
 
         ##### cache data
+        self.cache = {}
         if self.store_cache:
-            self.cache = {}
             print("filling cache")
             with trange(len(self)) as t:
                 for i in range(len(self)):
                     self.__getitem__(i)
                     t.update()
-        else:
-            self.cache = {}
 
     def __len__(self):
         return len(self.lc_file_list)
@@ -153,7 +155,9 @@ class LCData(torch.utils.data.Dataset):
         #     return self.cache[idx]
 
         if idx in self.cache:
-            (x, y) = self.cache[idx]
+            (x_cache, y_cache) = self.cache[idx]
+            x = deepcopy(x_cache)
+            y = deepcopy(y_cache)
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
@@ -177,7 +181,8 @@ class LCData(torch.utils.data.Dataset):
             
             if self.store_cache:
                 # add to cache 
-                self.cache[idx] = (x, y)
+                # deepcopy to avoid changing the original data
+                self.cache[idx] = (deepcopy(x), deepcopy(y))
 
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
@@ -449,26 +454,31 @@ def get_data_loaders(args):
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
-        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
+        transforms.MirrorFlip(prob=0.1),
+        transforms.RandomDelete(prob=0.1, delete_fraction=0.1),
+        transforms.RandomShift(prob=0.1, permute_fraction=0.1),
+        transforms.GaussianNoise(prob=0.5, std=0.0001),
         # transforms.BinData(bin_factor=3),  # bin before imputing
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length)
     ])
 
     # test tranforms - do not randomly delete or permute
+    val_transform = torchvision.transforms.Compose([
+        transforms.NormaliseFlux(),
+        transforms.ImputeNans(method="zero"),
+        transforms.Cutoff(length=max_lc_length)
+    ])
+
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
-        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-        # transforms.BinData(bin_factor=3),  # bin before imputing
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length)
     ])
 
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
-    train_dataset = LCData(
+    train_set = LCData(
         data_root_path=data_root_path,
         data_split="train_debug" if debug else "train",
         bin_factor=bin_factor,
@@ -478,16 +488,29 @@ def get_data_loaders(args):
         transform=training_transform,
         store_cache=cache
     )
-    indices = [i for i in range(len(train_dataset))]
-    train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
-    train_set = torch.utils.data.Subset(train_dataset, train_idx)
-    val_set = torch.utils.data.Subset(train_dataset, val_idx)
+    # indices = [i for i in range(len(train_dataset))]
+    # train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
+    # train_set = torch.utils.data.Subset(train_dataset, train_idx)
+    # val_set = torch.utils.data.Subset(train_dataset, val_idx)
 
+    # same amount of synthetics in val set as in train set
+    val_set = LCData(
+        data_root_path=data_root_path,
+        data_split="val_debug" if debug else "val",
+        bin_factor=bin_factor,
+        synthetic_prob=synthetic_prob,
+        eb_prob=eb_prob,
+        single_transit_only=not multi_transit,
+        transform=val_transform,
+        store_cache=cache
+    )
+
+    # no synthetics in test set
     test_set = LCData(
         data_root_path=data_root_path,
         data_split="test_debug" if debug else "test",
         bin_factor=bin_factor,
-        synthetic_prob=0.5,             # TODO have synthetics in test as well? yes probably
+        synthetic_prob=0.0,
         eb_prob=0.0,
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
@@ -521,7 +544,9 @@ def get_data_loaders(args):
 
 
 if __name__ == "__main__":
-    
+    import sys 
+    sys.path.append('/mnt/zfsusers/shreshth/pht_project/code/pht_ml/src')
+
     # parse data args only
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
@@ -543,12 +568,12 @@ if __name__ == "__main__":
             if i % 100 == 0:
                 print(i, x, y)
             # print(x["flux"].shape, y.shape)
-            # for j in range(len(x)):
-                # simulated = "sim" if x["tic_inj"][j] != -1 else "real"
-                # print(simulated)
-                # plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
-                # if j == 10:
-                    # break
+            for j in range(len(x)):
+                simulated = "sim" if x["tic_inj"][j] != -1 else "real"
+                print(simulated)
+                plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                if j == 10:
+                    break
             # break
             t.update()
     

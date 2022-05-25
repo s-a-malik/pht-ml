@@ -10,13 +10,14 @@ import pandas as pd
 
 import torch
 
-from utils import utils
+from utils import load_checkpoint
 from utils.parser import parse_args
 from utils.data import get_data_loaders
-from models.train import training_run, evaluate
+from models.train import training_run, evaluate, init_model, init_optim
+
 
 def main(args):
-
+    torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
     # random seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -40,8 +41,8 @@ def main(args):
     wandb.config.update(args)
 
     # initialise models, optimizers, data
-    model = utils.init_model(args)
-    optimizer, criterion = utils.init_optim(args, model)
+    model = init_model(args)
+    optimizer, criterion = init_optim(args, model)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
     print(f"Number of model parameters: {num_params}")
     wandb.config.num_params = num_params     # add to wandb config
@@ -65,7 +66,7 @@ def main(args):
             run_path=f"s-a-malik/{args.wandb_project}/{args.checkpoint}",
             root=model_path)
         # load state dict
-        model, optimizer = utils.load_checkpoint(model, optimizer, args.device,
+        model, optimizer = load_checkpoint(model, optimizer, args.device,
                                                  best_file.name)
     
     # train
@@ -73,7 +74,7 @@ def main(args):
         model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
 
     # load model
-    model, optimizer = utils.load_checkpoint(model, optimizer, args.device, best_file)
+    model, optimizer = load_checkpoint(model, optimizer, args.device, best_file)
 
     # evaluate on test set
     with torch.no_grad():

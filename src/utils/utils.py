@@ -12,10 +12,8 @@ import wandb
 
 import torch
 
-from models import nets
-
-SHORTEST_LC = 18900 # sectors 10-14
-# SHORTEST_LC = 17500 # sectors 10-38
+# SHORTEST_LC = 18900 # sectors 10-14
+SHORTEST_LC = 17500 # sectors 10-38
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -33,61 +31,6 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-
-def init_optim(args, model):
-    """Initialize optimizer and loss function
-    Params:
-    - args (argparse.Namespace): parsed command line arguments
-    - model (nn.Module): initialised model
-    Returns:
-    - optimizer (nn.optim): initialised optimizer
-    - criterion: initialised loss function
-    """
-    if args.optimizer == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
-    else:
-        raise NameError(f"Unknown optimizer {args.optimizer}")
-    
-    if args.loss == "BCE":
-        criterion = torch.nn.BCEWithLogitsLoss()
-    elif args.loss == "MSE":
-        criterion = torch.nn.MSELoss()
-    else:
-        raise NameError(f"Unknown loss function {args.loss}")
-
-    return optimizer, criterion
-
-
-def init_model(args):
-    """Initialize model
-    """
-    if args.model == "dense":
-        model = nets.SimpleNetwork(
-            input_dim=int(SHORTEST_LC / args.bin_factor),
-            hid_dims=args.hid_dims,
-            output_dim=1,
-            non_linearity=args.activation,
-            dropout=args.dropout
-        )
-    elif args.model == "ramjet":
-        if args.bin_factor == 3:
-            model = nets.RamjetBin3(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
-        elif args.bin_factor == 7:
-            model = nets.RamjetBin7(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
-    else:
-        raise NameError(f"Unknown model {args.model}")
-    model.to(args.device)
-
-    return model
 
 
 def load_checkpoint(model, optimizer, device, checkpoint_file: str):
@@ -132,6 +75,7 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     """
 
     # plot it
+    plt.clf()
     fig, ax = plt.subplots(figsize=(16, 5))
     plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
 

@@ -17,7 +17,7 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score, roc_auc_score
 
 from utils import utils
-
+from models import nets
 
 def evaluate(model, optimizer, criterion, data_loader, device, task="train", save_examples=-1):
     """Run one batch through model
@@ -116,6 +116,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         conf_preds_sorted = np.argsort(probs)[::-1]
         conf_preds_sorted = conf_preds_sorted[:5]
         for i, idx in enumerate(conf_preds_sorted):
+            plt.clf()
             fig, ax = utils.plot_lc(fluxs[idx])
             ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
             wandb.log({f"conf_preds_{i}": wandb.Image(fig)}, step=save_examples)
@@ -181,9 +182,6 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 device=args.device,
                 task="train")
 
-            # log
-            # TODO track lr etc as well if using scheduler
-
             # evaluate on val set
             if (args.example_save_freq != -1) and (epoch % args.example_save_freq == 0):
                 save_examples = epoch
@@ -243,3 +241,58 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
         pass
 
     return model
+
+
+def init_model(args):
+    """Initialize model
+    """
+    if args.model == "dense":
+        model = nets.SimpleNetwork(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            hid_dims=args.hid_dims,
+            output_dim=1,
+            non_linearity=args.activation,
+            dropout=args.dropout
+        )
+    elif args.model == "ramjet":
+        if args.bin_factor == 3:
+            model = nets.RamjetBin3(
+                input_dim=int(SHORTEST_LC / args.bin_factor),
+                output_dim=1,
+                dropout=0.1
+            )
+        elif args.bin_factor == 7:
+            model = nets.RamjetBin7(
+                input_dim=int(SHORTEST_LC / args.bin_factor),
+                output_dim=1,
+                dropout=0.1
+            )
+    else:
+        raise NameError(f"Unknown model {args.model}")
+    model.to(args.device)
+
+    return model
+
+
+def init_optim(args, model):
+    """Initialize optimizer and loss function
+    Params:
+    - args (argparse.Namespace): parsed command line arguments
+    - model (nn.Module): initialised model
+    Returns:
+    - optimizer (nn.optim): initialised optimizer
+    - criterion: initialised loss function
+    """
+    if args.optimizer == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
+    else:
+        raise NameError(f"Unknown optimizer {args.optimizer}")
+    
+    if args.loss == "BCE":
+        criterion = torch.nn.BCEWithLogitsLoss()
+    elif args.loss == "MSE":
+        criterion = torch.nn.MSELoss()
+    else:
+        raise NameError(f"Unknown loss function {args.loss}")
+
+    return optimizer, criterion
