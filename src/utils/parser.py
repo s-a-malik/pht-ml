@@ -169,7 +169,7 @@ def parse_args():
                         help="wandb experiment name")
     parser.add_argument("--example-save-freq",
                         type=int,
-                        default=10,
+                        default=-1,
                         help="save example predictions on val set every n epochs")
 
     args = parser.parse_args(sys.argv[1:])

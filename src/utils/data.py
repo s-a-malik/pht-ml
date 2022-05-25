@@ -15,10 +15,6 @@ from tqdm.autonotebook import trange
 import torch
 import torchvision
 
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
-from matplotlib.ticker import AutoMinorLocator
-
 import numpy as np
 import pandas as pd
 
@@ -33,10 +29,13 @@ from utils.utils import plot_lc
 
 
 TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_FULL = [10,11,12,13]
+TRAIN_SECTORS_FULL = [10,11,12,13,14]
 
-TEST_SECTORS_DEBUG = [14]
-TEST_SECTORS_FULL = [14]
+VAL_SECTORS_DEBUG = [11]
+VAL_SECTORS_FULL = [14,15,16]
+
+TEST_SECTORS_DEBUG = [17]
+TEST_SECTORS_FULL = [17,18,19]
 
 # SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -61,7 +60,7 @@ class LCData(torch.utils.data.Dataset):
         """
         Params:
         - data_root_path (str): path to data directory 
-        - data_split (bool): which data split to load (train/test/train_debug/test_debug)
+        - data_split (bool): which data split to load (train(_debug)/val(_debug)/test(_debug))
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
@@ -80,16 +79,7 @@ class LCData(torch.utils.data.Dataset):
         self.transform = transform
         self.store_cache = store_cache
         
-        if self.data_split == "train":
-            sectors = TRAIN_SECTORS_FULL
-        elif self.data_split == "test":
-            sectors = TEST_SECTORS_FULL
-        elif self.data_split == "train_debug":
-            sectors = TRAIN_SECTORS_DEBUG
-        elif self.data_split == "test_debug":
-            sectors = TEST_SECTORS_DEBUG
-        else:
-            raise ValueError(f"Invalid data split {data_split}")
+        sectors = self._get_sectors()
 
         ####### LC data
 
@@ -131,7 +121,8 @@ class LCData(torch.utils.data.Dataset):
                 for i in range(len(self)):
                     self.__getitem__(i)
                     t.update()
-
+        else:
+            self.cache = {}
 
     def __len__(self):
         return len(self.lc_file_list)
@@ -158,35 +149,39 @@ class LCData(torch.utils.data.Dataset):
         - y (float): volunteer confidence score (1 if synthetic transit)
         """
         # check if we have this data cached
-        if self.store_cache:
-            if idx in self.cache:
-                return self.cache[idx]
+        # if idx in self.cache:
+        #     return self.cache[idx]
 
-        # get lc file
-        lc_file = self.lc_file_list[idx]
-        x = _read_lc_csv(lc_file)
-        # if corrupt return None and skip c.f. collate_fn
-        if x is None:
-            return {"flux": None}, None
-
-        # get label for this lc file (if exists), match sector 
-        y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
-        if len(y) == 1:
-            y = torch.tensor(y[0], dtype=torch.float)
-        elif len(y) > 1:
-            # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
-            y = None
-            # self.no_label_tics.append((tic, sec))
+        if idx in self.cache:
+            (x, y) = self.cache[idx]
         else:
-            # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
-            y = None
-            # self.no_label_tics.append((tic, sec))
+            # get lc file
+            lc_file = self.lc_file_list[idx]
+            x = _read_lc_csv(lc_file)
+            # if corrupt return None and skip c.f. collate_fn
+            if x is None:
+                return {"flux": None}, None
+
+            # get label for this lc file (if exists), match sector 
+            y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
+            if len(y) == 1:
+                y = torch.tensor(y[0], dtype=torch.float)
+            elif len(y) > 1:
+                # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
+                y = None
+                # self.no_label_tics.append((tic, sec))
+            else:
+                # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
+                y = None
+                # self.no_label_tics.append((tic, sec))
+            
+            if self.store_cache:
+                # add to cache 
+                self.cache[idx] = (x, y)
 
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
-            # print("injecting transit")
             pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
-            # print(pl_inj)
             x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
             x["tic_inj"] = pl_inj["tic_id"]
             x["depth"] = pl_inj["depth"]
@@ -194,7 +189,6 @@ class LCData(torch.utils.data.Dataset):
             x["period"] = pl_inj["period"]
             y = torch.tensor(1.0, dtype=torch.float)
             # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
-
         else:
             x["tic_inj"] = -1
             x["depth"] = -1
@@ -205,14 +199,31 @@ class LCData(torch.utils.data.Dataset):
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-        # turn into float
+        # turn flux into float
         x["flux"] = torch.tensor(x["flux"], dtype=torch.float)
-        
-        if self.store_cache:
-            # add to cache 
-            self.cache[idx] = (x, y)
 
         return x, y
+
+
+    def _get_sectors(self):
+        """
+        Returns:
+        - sectors (list): list of sectors
+        """
+        if self.data_split == "train":
+            return TRAIN_SECTORS_FULL
+        elif self.data_split == "val":
+            return VAL_SECTORS_FULL
+        elif self.data_split == "test":
+            return TEST_SECTORS_FULL
+        elif self.data_split == "train_debug":
+            return TRAIN_SECTORS_DEBUG
+        elif self.data_split == "val_debug":
+            return VAL_SECTORS_DEBUG
+        elif self.data_split == "test_debug":
+            return TEST_SECTORS_DEBUG
+        else:
+            raise ValueError(f"Invalid data split {data_split}")
 
 
     def _get_pl_data(self):
@@ -266,18 +277,23 @@ class LCData(torch.utils.data.Dataset):
 
     def _is_planet_in_data_split(self, tic_id):
         """Checks if a planet flux should be included in this data for simulation.
-        Currently just uses the tic_id to select 1/4th of the available data
+        Currently just uses the tic_id to select 1/4th of the available data for training/val.
         """
         if self.data_split in ["train", "train_debug"]:
             if tic_id % 4 == 0:
                 return True
             else:
                 return False
-        elif self.data_split in ["test", "test_debug"]:
-            if tic_id % 4 == 0:
-                return False
-            else:
+        elif self.data_split in ["val", "val_debug"]:
+            if tic_id % 4 == 1:
                 return True
+            else:
+                return False
+        elif self.data_split in ["test", "test_debug"]:
+            if (tic_id % 4 == 2) or (tic_id % 4 == 3):
+                return True
+            else:
+                return False
 
 
     def _extract_single_transit(self, x):

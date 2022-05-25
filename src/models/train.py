@@ -45,7 +45,8 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     tics = []
     secs = []
     tic_injs = []
-    fluxs = []
+    if save_examples != -1:
+        fluxs = []
     total = 0
     if task in ["val", "test"]:
         model.eval()
@@ -76,8 +77,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            
-            flux = flux.detach().cpu().numpy()
+            if save_examples != -1:
+                flux = flux.detach().cpu().numpy()
+                fluxs += flux.tolist()
+
             prob = prob.detach().cpu().numpy()
             pred = pred.detach().cpu().numpy()
             y_bin = y_bin.detach().cpu().numpy()
@@ -89,7 +92,6 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             tics += x["tic"].tolist()
             secs += x["sec"].tolist()
             tic_injs += x["tic_inj"].tolist()
-            fluxs += flux.tolist()
             total += logits.size(0)
             # print("targets", y)
             # print("targets_bin", y_bin)
@@ -105,39 +107,38 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     acc = accuracy_score(targets_bin, preds)
     prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds, average="binary")
     auc = roc_auc_score(targets_bin, probs)
-    # TODO for test set, should get more granulater metrics - probs can do this analysis afterwards from the raw results. 
 
     # save example predictions to wandb for inspection
-    if save_examples > 0:
-        # save roc and pr curves
-        wandb.log({"roc": wandb.plot.roc_curve(targets_bin, preds),
-                    "pr": wandb.plot.pr_curve(targets_bin, preds)},
-                    step=save_examples)
+    if save_examples != -1:
+        probs = np.array(probs)
         # save example predictions
         # most confident preds
         conf_preds_sorted = np.argsort(probs)[::-1]
         conf_preds_sorted = conf_preds_sorted[:5]
-        for i in conf_preds_sorted:
-            fig, ax = utils.plot_lc(fluxs[i])
-            ax.set_title(f"tic: {tics[i]} sec: {secs[i]} tic_inj: {tic_injs[i]}, prob: {probs[i]}, target: {targets[i]}")
-            wandb.log({f"conf_preds_{i}": fig}, step=save_examples)
-
+        for i, idx in enumerate(conf_preds_sorted):
+            fig, ax = utils.plot_lc(fluxs[idx])
+            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+            wandb.log({f"conf_preds_{i}": wandb.Image(fig)}, step=save_examples)
 
         # most uncertain preds (closest to 0.5)
         unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
         unc_preds_sorted = unc_preds_sorted[:5]
-        for i in unc_preds_sorted:
-            fig, ax = utils.plot_lc(fluxs[i])
-            ax.set_title(f"tic: {tics[i]} sec: {secs[i]} tic_inj: {tic_injs[i]}, prob: {probs[i]}, target: {targets[i]}")
-            wandb.log({f"unc_preds_{i}": fig}, step=save_examples)
+        for i, idx in enumerate(unc_preds_sorted):
+            fig, ax = utils.plot_lc(fluxs[idx])
+            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+            wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=save_examples)
 
         # most lossy preds (highest difference between prob and target)
-        loss_preds_sorted = np.argsort(np.abs(probs - targets))
+        loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
         loss_preds_sorted = loss_preds_sorted[:5]
-        for i in loss_preds_sorted:
-            fig, ax = utils.plot_lc(fluxs[i])
-            ax.set_title(f"tic: {tics[i]} sec: {secs[i]} tic_inj: {tic_injs[i]}, prob: {probs[i]}, target: {targets[i]}")
-            wandb.log({f"worst_preds_{i}": fig}, step=save_examples)
+        for i, idx in enumerate(loss_preds_sorted):
+            fig, ax = utils.plot_lc(fluxs[idx])
+            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+            wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=save_examples)
+
+        wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),
+                    "pr": wandb.plot.pr_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1))},
+                    step=save_examples)
 
     if task == "test":
         return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total
@@ -184,7 +185,11 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             # TODO track lr etc as well if using scheduler
 
             # evaluate on val set
-            save_examples = epoch % args.example_save_freq == 0
+            if (args.example_save_freq != -1) and (epoch % args.example_save_freq == 0):
+                save_examples = epoch
+                print("saving example predictions")
+            else:
+                save_examples = -1
             val_loss, val_acc, val_f1, val_prec, val_rec, val_auc = evaluate(
                 model=model,
                 optimizer=optimizer,

@@ -4,6 +4,10 @@
 import os
 import shutil
 
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+from matplotlib.ticker import AutoMinorLocator
+
 import wandb
 
 import torch
@@ -137,7 +141,6 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
         marker="o",
         markersize=1,
         lw=0,
-        label="unbinned",
     )
     ## label the axis.
     ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
@@ -161,6 +164,6 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
 
     ## save the image
     if save_path is not None:
-        plt.savefig(save_path, facecolor=fig.get_facecolor(), edgecolor="none")
-    # plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+        plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+
     return fig, ax

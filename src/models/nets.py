@@ -17,6 +17,7 @@ class RamjetBin3(nn.Module):
     def __init__(self, input_dim=6300, output_dim=1, dropout=0.1):
         super(RamjetBin3, self).__init__()
     
+        self.input_dim = input_dim
         self.output_dim = output_dim
         self.dropout = dropout
 
@@ -32,9 +33,9 @@ class RamjetBin3(nn.Module):
         self.block8 = ConvBlock(in_channels=256, out_channels=256, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block9 = ConvBlock(in_channels=256, out_channels=256, kernel_size=3, pooling_size=1, dropout=self.dropout)
 
-        if self.input_dim = 6300:
+        if self.input_dim == 6300:
             self.block10 = DenseBlock(input_dim=256*8, output_dim=512, dropout=self.dropout)
-        elif self.input_dim = 5833:
+        elif self.input_dim == 5833:
             self.block10 = DenseBlock(input_dim=256*6, output_dim=512, dropout=self.dropout)
         else:
             raise ValueError('input_dim not supported')
@@ -73,6 +74,7 @@ class RamjetBin7(nn.Module):
     def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
         super(RamjetBin7, self).__init__()
     
+        self.input_dim = input_dim
         self.output_dim = output_dim
         self.dropout = dropout
 
@@ -86,9 +88,9 @@ class RamjetBin7(nn.Module):
         self.block6 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout) # another pool
         self.block7 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
 
-        if self.input_dim = 2700:
+        if self.input_dim == 2700:
             self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)
-        elif self.input_dim = 2500:
+        elif self.input_dim == 2500:
             self.block8 = DenseBlock(input_dim=128*15, output_dim=512, dropout=self.dropout)
         else:
             raise ValueError('input_dim not supported')
