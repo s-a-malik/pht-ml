@@ -17,6 +17,7 @@ import numpy as np
 from sklearn.metrics import precision_recall_fscore_support, accuracy_score, roc_auc_score
 
 from utils import utils
+from utils.data import SHORTEST_LC
 from models import nets
 
 def evaluate(model, optimizer, criterion, data_loader, device, task="train", save_examples=-1):

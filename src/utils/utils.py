@@ -12,8 +12,6 @@ import wandb
 
 import torch
 
-# SHORTEST_LC = 18900 # sectors 10-14
-SHORTEST_LC = 17500 # sectors 10-38
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

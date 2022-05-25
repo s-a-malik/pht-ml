@@ -47,16 +47,20 @@ def parse_args():
                         help="binning factor for light curves")
     parser.add_argument("--aug-prob",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Probability of augmenting data with random defects.")
     parser.add_argument("--permute-fraction",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Fraction of light curve to be randomly permuted.")
     parser.add_argument("--delete-fraction",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Fraction of light curve to be randomly deleted.")
+    parser.add_argument("--noise-std",
+                        type=float,
+                        default=0.0001,
+                        help="Standard deviation of noise added to light curve for training.")
     parser.add_argument("--multi-transit",
                         action="store_true",
                         help="take all transits in light curve from simulated data.")

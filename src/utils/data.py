@@ -156,6 +156,7 @@ class LCData(torch.utils.data.Dataset):
 
         if idx in self.cache:
             (x_cache, y_cache) = self.cache[idx]
+            # TODO deepcopy necessary? Overhead of this?
             x = deepcopy(x_cache)
             y = deepcopy(y_cache)
         else:
@@ -445,6 +446,10 @@ def get_data_loaders(args):
     batch_size = args.batch_size
     num_workers = args.num_workers
     cache = not args.no_cache
+    aug_prob = args.aug_prob
+    permute_fraction = args.permute_fraction
+    delete_fraction = args.delete_fraction
+    noise_std = args.noise_std
     # max_lc_length = args.max_lc_length
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
@@ -454,10 +459,10 @@ def get_data_loaders(args):
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.MirrorFlip(prob=0.1),
-        transforms.RandomDelete(prob=0.1, delete_fraction=0.1),
-        transforms.RandomShift(prob=0.1, permute_fraction=0.1),
-        transforms.GaussianNoise(prob=0.5, std=0.0001),
+        transforms.MirrorFlip(prob=aug_prob),
+        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
+        transforms.GaussianNoise(prob=aug_prob*3, std=noise_std),
         # transforms.BinData(bin_factor=3),  # bin before imputing
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length)
@@ -488,10 +493,6 @@ def get_data_loaders(args):
         transform=training_transform,
         store_cache=cache
     )
-    # indices = [i for i in range(len(train_dataset))]
-    # train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
-    # train_set = torch.utils.data.Subset(train_dataset, train_idx)
-    # val_set = torch.utils.data.Subset(train_dataset, val_idx)
 
     # same amount of synthetics in val set as in train set
     val_set = LCData(
