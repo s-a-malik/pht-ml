@@ -64,7 +64,7 @@ class LCData(torch.utils.data.Dataset):
         """
         Params:
         - data_root_path (str): path to data directory 
-        - data_split (bool): which data split to load (train(_debug)/val(_debug)/test(_debug))
+        - data_split (str): which data split to load (train(_debug)/val(_debug)/test(_debug))
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
@@ -83,25 +83,24 @@ class LCData(torch.utils.data.Dataset):
         self.transform = transform
         self.store_cache = store_cache
         
-        sectors = self._get_sectors()
+        self.sectors = self._get_sectors()
 
         ####### LC data
 
         # get list of all lc files
         self.lc_file_list = []
-        for sector in sectors:
+        for sector in self.sectors:
             # print(f"sector: {sector}")
             new_files = glob(f"{self.data_root_path}/lc_csvs/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
-
         print("total num. LC files found: ", len(self.lc_file_list))
 
         ####### Label data
 
         # get all the labels
         self.labels_df = pd.DataFrame()
-        for sector in sectors:
+        for sector in self.sectors:
             self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
         print("num. total labels (including simulated data): ", len(self.labels_df))
 
@@ -156,7 +155,7 @@ class LCData(torch.utils.data.Dataset):
 
         if idx in self.cache:
             (x_cache, y_cache) = self.cache[idx]
-            # TODO deepcopy necessary? Overhead of this?
+            # deepcopy to avoid changing the cached data
             x = deepcopy(x_cache)
             y = deepcopy(y_cache)
         else:
@@ -182,8 +181,7 @@ class LCData(torch.utils.data.Dataset):
             
             if self.store_cache:
                 # add to cache 
-                # deepcopy to avoid changing the original data
-                self.cache[idx] = (deepcopy(x), deepcopy(y))
+                self.cache[idx] = (x, y)
 
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
@@ -205,8 +203,6 @@ class LCData(torch.utils.data.Dataset):
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-        # turn flux into float
-        x["flux"] = torch.tensor(x["flux"], dtype=torch.float)
 
         return x, y
 
@@ -462,23 +458,26 @@ def get_data_loaders(args):
         transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
-        transforms.GaussianNoise(prob=aug_prob*3, std=noise_std),
+        transforms.GaussianNoise(prob=aug_prob, std=noise_std),
         # transforms.BinData(bin_factor=3),  # bin before imputing
         transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length)
+        transforms.Cutoff(length=max_lc_length),
+        transforms.ToFloatTensor()
     ])
 
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
         transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length)
+        transforms.Cutoff(length=max_lc_length),
+        transforms.ToFloatTensor()
     ])
 
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
         transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length)
+        transforms.Cutoff(length=max_lc_length),
+        transforms.ToFloatTensor()
     ])
 
 
@@ -557,6 +556,10 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--synthetic-prob", type=float, default=0.5)
     ap.add_argument("--eb-prob", type=float, default=0.0)
+    ap.add_argument("--aug-prob", type=float, default=0.1, help="Probability of augmenting data with random defects.")
+    ap.add_argument("--permute-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly permuted.")
+    ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
+    ap.add_argument("--noise-std", type=float, default=0.0001, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--num-workers", type=int, default=4)
     ap.add_argument("--multi-transit", action="store_true")

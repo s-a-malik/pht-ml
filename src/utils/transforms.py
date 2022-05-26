@@ -1,7 +1,19 @@
-import numpy as np
+"""
+"""
 
-# SHORTEST_LC = 17546
-# SHORTEST_LC = 18900 # sector 10-14
+import numpy as np
+import torch
+
+
+class ToFloatTensor(object):
+    """Convert numpy array to float tensor.
+    """
+    def __init__(self):
+        pass
+
+    def __call__(self, x):
+        return torch.tensor(x, dtype=torch.float)
+
 
 class NormaliseFlux(object):
     """Normalise the flux

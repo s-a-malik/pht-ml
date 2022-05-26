@@ -3,6 +3,8 @@ Utility functions and classes for model training and evaluation.
 """
 
 import os
+import time
+import datetime
 
 import matplotlib.pyplot as plt
 
@@ -171,10 +173,11 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 task="val")
     print(f"\ninitial loss: {best_loss}, acc: {best_acc}")
     best_epoch = 0
+    start_time = time.time()
     try:
         # Training loop
         for epoch in range(args.epochs):
-            
+            epoch_start = time.time()
             train_loss, train_acc, train_f1, train_prec, train_rec, train_auc = evaluate(
                 model=model,
                 optimizer=optimizer,
@@ -186,7 +189,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             # evaluate on val set
             if (args.example_save_freq != -1) and (epoch % args.example_save_freq == 0):
                 save_examples = epoch
-                print("saving example predictions")
+                print("saving example predictions on val set")
             else:
                 save_examples = -1
             val_loss, val_acc, val_f1, val_prec, val_rec, val_auc = evaluate(
@@ -228,8 +231,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             }
             utils.save_checkpoint(checkpoint_dict, is_best)
 
-            print(
-                f"\Epoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}, train/auc: {train_auc}"
+            print(f"\Time for Epoch: {time.time() - epoch_start:.2f}s, Total Time: {time.time() - start_time:.2f}s")
+                f"\nEpoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}, train/auc: {train_auc}"
                 f"\nval/loss: {val_loss}, val/acc: {val_acc}, val/prec: {val_prec}, val/rec: {val_rec}, val/f1: {val_f1}, val/auc: {val_auc}"
             )
 
