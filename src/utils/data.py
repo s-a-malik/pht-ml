@@ -226,7 +226,7 @@ class LCData(torch.utils.data.Dataset):
         elif self.data_split == "test_debug":
             return TEST_SECTORS_DEBUG
         else:
-            raise ValueError(f"Invalid data split {data_split}")
+            raise ValueError(f"Invalid data split {self.data_split}")
 
 
     def _get_pl_data(self):
