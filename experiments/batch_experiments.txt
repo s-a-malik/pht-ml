@@ -5,7 +5,8 @@
 
 # --multi-transit --num-workers 4
 # --model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4
-# --num-workers 4 --no-cache --bin-factor 3
---num-workers 0 --bin-factor 7
-#--num-workers 4 --bin-factor 7 --debug --no-cache
+#  --num-workers 4 --no-cache --bin-factor 3
+# --num-workers 0 --bin-factor 7 --debug --no-cache
+# --num-workers 0 --bin-factor 7 --debug
+--num-workers 4 --bin-factor 7
 # --multi-transit --model dense

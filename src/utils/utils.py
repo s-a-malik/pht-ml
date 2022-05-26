@@ -72,8 +72,10 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     - x (np.array): light curve
     """
 
+    # close all previous figures
+    plt.close('all')
+
     # plot it
-    plt.clf()
     fig, ax = plt.subplots(figsize=(16, 5))
     plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
 

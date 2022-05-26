@@ -103,8 +103,8 @@ def parse_args():
     # training config
     parser.add_argument("--optimizer",
                         type=str,
-                        default="adam",
-                        help="optimizer")
+                        default="adamw",
+                        help="optimizer (adam, sgd, adamw)")
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",
@@ -118,7 +118,7 @@ def parse_args():
                         help="random seed")
     parser.add_argument("--batch-size",
                         type=int,
-                        default=256,
+                        default=512,
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
@@ -130,7 +130,7 @@ def parse_args():
                         help="learning rate")
     parser.add_argument("--weight-decay",
                         type=float,
-                        default=0.0,
+                        default=0.01,
                         help="weight decay")
     parser.add_argument("--momentum",
                         type=float,

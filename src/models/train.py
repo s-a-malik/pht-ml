@@ -58,6 +58,17 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     else:
         raise NameError("Only train, val or test is allowed as task")
     
+    # pytorch profiler
+    # with torch.profiler.profile(
+    # schedule=torch.profiler.schedule(
+    #     wait=2,
+    #     warmup=2,
+    #     active=6,
+    #     repeat=1),
+    # on_trace_ready=torch.profiler.tensorboard_trace_handler,
+    # with_stack=True
+    # ) as profiler:
+
     with trange(len(data_loader)) as t:
         for i, batch in enumerate(data_loader):
             # unpack batch from dataloader
@@ -103,8 +114,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             # print("tics", tic)
             # print("secs", sec)
             # print("total", total)
-
             t.update()
+
+            # profiler.step()
+            
     # print("targets", targets)
     # print("pred probs", probs)
     acc = accuracy_score(targets_bin, preds)
@@ -231,7 +244,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             }
             utils.save_checkpoint(checkpoint_dict, is_best)
 
-            print(f"\Time for Epoch: {time.time() - epoch_start:.2f}s, Total Time: {time.time() - start_time:.2f}s")
+            print(f"\nTime for Epoch: {time.time() - epoch_start:.2f}s, Total Time: {time.time() - start_time:.2f}s"
                 f"\nEpoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}, train/auc: {train_auc}"
                 f"\nval/loss: {val_loss}, val/acc: {val_acc}, val/prec: {val_prec}, val/rec: {val_rec}, val/f1: {val_f1}, val/auc: {val_auc}"
             )
@@ -289,6 +302,10 @@ def init_optim(args, model):
     """
     if args.optimizer == "adam":
         optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
+    elif args.optimizer == "sgd":
+        optimizer = torch.optim.SGD(model.parameters(), args.lr, weight_decay=args.weight_decay)
+    elif args.optimizer == "adamw":
+        optimizer = torch.optim.AdamW(model.parameters(), args.lr, weight_decay=args.weight_decay)
     else:
         raise NameError(f"Unknown optimizer {args.optimizer}")
     

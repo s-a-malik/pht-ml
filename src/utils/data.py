@@ -31,14 +31,14 @@ from utils.utils import plot_lc
 
 
 TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_FULL = [10,11,12,13,14]
+TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
 # TRAIN_SECTORS_FULL = [10,11,12]
 
 VAL_SECTORS_DEBUG = [13]
-VAL_SECTORS_FULL = [15,16]
+VAL_SECTORS_FULL = [22,23,24]
 
 TEST_SECTORS_DEBUG = [14]
-TEST_SECTORS_FULL = [17,18,19]
+TEST_SECTORS_FULL = [37]
 # TEST_SECTORS_FULL = [14]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
@@ -154,10 +154,11 @@ class LCData(torch.utils.data.Dataset):
         #     return self.cache[idx]
 
         if idx in self.cache:
-            (x_cache, y_cache) = self.cache[idx]
+            # (x_cache, y_cache) = self.cache[idx]
+            (x, y) = self.cache[idx]
             # deepcopy to avoid changing the cached data
-            x = deepcopy(x_cache)
-            y = deepcopy(y_cache)
+            # x = deepcopy(x_cache)
+            # y = deepcopy(y_cache)
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
@@ -181,7 +182,7 @@ class LCData(torch.utils.data.Dataset):
             
             if self.store_cache:
                 # add to cache 
-                self.cache[idx] = (x, y)
+                self.cache[idx] = (deepcopy(x), deepcopy(y))
 
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
