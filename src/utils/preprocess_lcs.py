@@ -135,11 +135,10 @@ def _read_lc(lc_file):
     return time, flux, file_name
 
 
-
 if __name__ == "__main__":
     # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
-    SECTORS = [38]
+    SECTORS = [16]
     # SECTORS = list(range(31, 38))
 
     # parse args

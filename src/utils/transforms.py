@@ -102,7 +102,7 @@ class RandomDelete(object):
             N = len(x)
             n = int(np.floor(N * self.delete_fraction))
             start = np.random.randint(0, N - n)
-            x[np.arange(start, start + n)] = 0.0
+            x[np.arange(start, start + n)] = np.nan
 
         return x
 
@@ -150,4 +150,15 @@ class GaussianNoise(object):
     def __call__(self, x):
         if np.random.rand() < self.prob:
             x += np.random.normal(0, self.std, len(x))
+        return x
+
+
+class RemoveOutliers(object):
+    """Remove data which is more than 2 std away from the median
+    """
+    def __init__(self, threshold_std=2):
+        self.threshold_std = threshold_std
+    
+    def __call__(self, x):
+        x[np.abs(x - np.nanmedian(x)) > self.threshold_std * np.nanstd(x)] = np.nan
         return x

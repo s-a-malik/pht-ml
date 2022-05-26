@@ -5,7 +5,6 @@ Utility functions and classes for data manipulation.
 import os
 import argparse
 from ast import literal_eval
-import csv
 import time
 from glob import glob
 import functools
@@ -18,8 +17,6 @@ import torchvision
 
 import numpy as np
 import pandas as pd
-
-from sklearn.model_selection import train_test_split as split
 
 import astropy.io.fits as pf
 from astropy.table import Table

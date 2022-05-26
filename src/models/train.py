@@ -84,7 +84,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
-            avg_loss.update(loss.data.cpu().item(), flux.size(0))     
+            avg_loss.update(loss.data.cpu().item(), y.size(0))     
             
             if task == "train":
                 # compute gradient and do SGD step
@@ -107,13 +107,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             secs += x["sec"].tolist()
             tic_injs += x["tic_inj"].tolist()
             total += logits.size(0)
-            # print("targets", y)
-            # print("targets_bin", y_bin)
-            # print("probs", prob)
-            # print("preds", pred)
-            # print("tics", tic)
-            # print("secs", sec)
-            # print("total", total)
+
             t.update()
 
             # profiler.step()
@@ -183,7 +177,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 criterion=criterion,
                 data_loader=val_loader,
                 device=args.device,
-                task="val")
+                task="val",
+                save_examples=-1 if args.example_save_freq == -1 else 0)
     print(f"\ninitial loss: {best_loss}, acc: {best_acc}")
     best_epoch = 0
     start_time = time.time()
@@ -200,8 +195,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 task="train")
 
             # evaluate on val set
-            if (args.example_save_freq != -1) and (epoch % args.example_save_freq == 0):
-                save_examples = epoch
+            if (args.example_save_freq != -1) and ((epoch + 1) % args.example_save_freq == 0):
+                save_examples = epoch + 1
                 print("saving example predictions on val set")
             else:
                 save_examples = -1
