@@ -186,7 +186,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
     start_time = time.time()
     try:
         # Training loop
-        for epoch in range(args.epochs):
+        for epoch in range(1, args.epochs):
             epoch_start = time.time()
             train_loss, train_acc, train_f1, train_prec, train_rec, train_auc = evaluate(
                 model=model,
@@ -197,8 +197,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 task="train")
 
             # evaluate on val set
-            if (args.example_save_freq != -1) and ((epoch + 1) % args.example_save_freq == 0):
-                save_examples = epoch + 1
+            if (args.example_save_freq != -1) and ((epoch) % args.example_save_freq == 0):
+                save_examples = epoch
                 print("saving example predictions on val set")
             else:
                 save_examples = -1

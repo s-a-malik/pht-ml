@@ -52,8 +52,11 @@ def main(args):
 
     train_loader, val_loader, test_loader = get_data_loaders(args)
     wandb.config.num_train_examples = len(train_loader.dataset)
+    wandb.config.train_sectors = train_loader.dataset.sectors
     wandb.config.num_val_examples = len(val_loader.dataset)
+    wandb.config.val_sectors = val_loader.dataset.sectors
     wandb.config.num_test_examples = len(test_loader.dataset)
+    wandb.config.test_sectors = test_loader.dataset.sectors
 
     # files for checkpoints
     scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here

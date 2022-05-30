@@ -27,15 +27,16 @@ from utils.utils import plot_lc
 
 
 TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
-# TRAIN_SECTORS_FULL = [10,11,12]
+# TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
+TRAIN_SECTORS_FULL = [10,11,12,13,14,15]
 
-VAL_SECTORS_DEBUG = [10]
-VAL_SECTORS_FULL = [22,23,24]
+VAL_SECTORS_DEBUG = [11]
+# VAL_SECTORS_FULL = [22,23,24]
+VAL_SECTORS_FULL = [16,17,18]
 
-TEST_SECTORS_DEBUG = [10]
-TEST_SECTORS_FULL = [37]
-# TEST_SECTORS_FULL = [14]
+TEST_SECTORS_DEBUG = [14]
+# TEST_SECTORS_FULL = [37]
+TEST_SECTORS_FULL = [19]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -586,7 +587,7 @@ if __name__ == "__main__":
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
     ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
     ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
-    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--min-snr", type=float, default=2.0, help="Min signal to noise ratio for planet injection.")
     ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--num-workers", type=int, default=0)
