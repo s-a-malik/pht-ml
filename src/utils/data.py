@@ -54,6 +54,7 @@ class LCData(torch.utils.data.Dataset):
         bin_factor=7,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        min_snr=0.5,
         single_transit_only=True,
         transform=None,
         store_cache=True
@@ -65,6 +66,7 @@ class LCData(torch.utils.data.Dataset):
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
         - transform (callable): transform to apply to the data
         - store_cache (bool): whether to store all the data in RAM in advance
@@ -183,14 +185,11 @@ class LCData(torch.utils.data.Dataset):
 
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
-            pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
-            x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
-            x["tic_inj"] = pl_inj["tic_id"]
-            x["depth"] = pl_inj["depth"]
-            x["duration"] = pl_inj["duration"]
-            x["period"] = pl_inj["period"]
+            x = self._add_synthetic_transit(x)
+            # if bad snr, return none
+            if x is None:
+                return {"flux": None}, None
             y = torch.tensor(1.0, dtype=torch.float)
-            # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
         else:
             x["tic_inj"] = -1
             x["depth"] = -1
@@ -253,6 +252,7 @@ class LCData(torch.utils.data.Dataset):
                 pl_dur = pl_row['col9'][0]     # transit duration
                 pl_per = pl_row['col3'][0]     # transit period                  
                 pl_flux = np.genfromtxt(str(pl_file), skip_header=1)
+
                 if len(pl_flux) == 0:
                     print(f"WARNING: no data for tic {tic_id}", pl_row)
                     print(f"skipping...")
@@ -265,6 +265,11 @@ class LCData(torch.utils.data.Dataset):
                         print(f"skipping...")
                         continue
                 
+                # check transit duration as well (from simulation)
+                if pl_dur < 4: 
+                    print(f"duration too short for tic {tic_id}", pl_row)
+                    continue
+
                 pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
                 t.update()
 
@@ -295,6 +300,47 @@ class LCData(torch.utils.data.Dataset):
             else:
                 return False
 
+
+    def _add_synthetic_transit(self, x):
+        """Adds a synthetic transit to the data.
+        """
+        bad_snr = True
+        num_bad = 0
+        while bad_snr:
+            pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
+            # check closest cdpp of base flux to planet duration
+            durs = np.array([0.5, 1, 2])
+            durs_ = ["cdpp05", "cdpp1", "cdpp2"]
+            j = np.argmin(abs(pl_inj["duration"] - durs))
+            # check if we have cdpp data for this star
+            if durs_[j] in x:
+                pl_cdpp = float(x[durs_[j]])     
+                pl_snr = pl_inj["depth"] / pl_cdpp
+            else:
+                # if not, just inject anyway (backwards compatibility)
+                print(f"WARNING: no {durs_[j]} data for tic {x['tic']}")
+                pl_snr = 100.0
+
+            # if the SNR is lower than our threshhold, skip this target entirely. 
+            # min_snr = 0.5 in the argparse - ask Nora.
+            # if (pl_snr < args.min_snr) or (pl_snr > 15): 
+            if pl_snr > self.min_snr:
+                bad_snr = False
+            if bad_snr:
+                num_bad += 1
+                print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"])
+                if num_bad > 10:
+                    print("too many bad SNRs. Skipping this target.")
+                    return None
+        
+        x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
+        x["tic_inj"] = pl_inj["tic_id"]
+        x["depth"] = pl_inj["depth"]
+        x["duration"] = pl_inj["duration"]
+        x["period"] = pl_inj["period"]
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
+
+        return x
 
     def _extract_single_transit(self, x):
         """Extract a single transit from the planet flux
@@ -375,6 +421,7 @@ def _read_lc_csv(lc_file):
         - teff (float): effective temperature
         - srad (float): stellar radius
         - binfac (float): binning factor
+        - cdpp(05,1,2) (float): CDPP at 0.5, 1, 2 hour time scales
     """
     try:
         # read the csv file
@@ -399,33 +446,6 @@ def _read_lc_csv(lc_file):
         x = None
     return x
 
-
-def _read_lc(lc_file):
-    """Read light curve .fits file
-    """
-    # open the file in context manager - catching corrupt files
-    try:
-        with pf.open(lc_file) as hdul:
-            d = hdul[1].data
-            t = d["TIME"]   # currently not using time
-            f2 = d["PDCSAP_FLUX"]  # the processed flux
-            
-            t0 = t[0]  # make the time start at 0 (so that the timeline always runs from 0 to 27.8 days)
-            t -= t0
-
-            tic = int(hdul[0].header["TICID"])
-            sec = int(hdul[0].header["SECTOR"])
-            cam = int(hdul[0].header["CAMERA"])
-            chi = int(hdul[0].header["CCD"])
-            tessmag = hdul[0].header["TESSMAG"]
-            teff = hdul[0].header["TEFF"]
-            srad = hdul[0].header["RADIUS"]
-    except:
-        print("Error in fits file: ", lc_file)
-        return None, None, None
-
-    return f2, tic, sec
-
         
 def get_data_loaders(args):
     """Get data loaders given argparse arguments
@@ -443,7 +463,9 @@ def get_data_loaders(args):
     aug_prob = args.aug_prob
     permute_fraction = args.permute_fraction
     delete_fraction = args.delete_fraction
+    outlier_fraction = args.outlier_fraction
     noise_std = args.noise_std
+    min_snr = args.min_snr
     # max_lc_length = args.max_lc_length
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
@@ -453,11 +475,11 @@ def get_data_loaders(args):
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.RemoveOutliers(percent_change=outlier_fraction),
         transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
-        transforms.GaussianNoise(prob=aug_prob, std=noise_std),
-        # transforms.BinData(bin_factor=3),  # bin before imputing
+        transforms.GaussianNoise(prob=aug_prob, std=noise_std), # curve dependant
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -466,6 +488,7 @@ def get_data_loaders(args):
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.RemoveOutliers(percent_change=outlier_fraction),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -473,6 +496,7 @@ def get_data_loaders(args):
 
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.RemoveOutliers(percent_change=outlier_fraction),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -486,6 +510,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
         store_cache=cache
@@ -498,6 +523,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=val_transform,
         store_cache=cache
@@ -510,6 +536,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        min_snr=min_snr,
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
         store_cache=cache
@@ -557,6 +584,8 @@ if __name__ == "__main__":
     ap.add_argument("--aug-prob", type=float, default=0.1, help="Probability of augmenting data with random defects.")
     ap.add_argument("--permute-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly permuted.")
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
+    ap.add_argument("--outlier-fraction", type=float, default=0.1, help="Remove points further than this from the median.")
+    ap.add_argument("--min-snr", type=float, default=0.5, help="Min signal to noise ratio for planet injection.")
     ap.add_argument("--noise-std", type=float, default=0.0001, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--num-workers", type=int, default=4)

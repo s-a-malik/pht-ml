@@ -99,7 +99,7 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
 
-    ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
+    ax.tick_params(axis="y", direction="in", pad=-50, color="white", labelcolor="white")
     ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
 
     # ax.set_xlabel("Time (days)", fontsize=10, color="white")

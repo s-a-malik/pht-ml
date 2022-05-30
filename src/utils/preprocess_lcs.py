@@ -65,30 +65,32 @@ def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
         # get the list of files in the sector
         fits_files = glob(os.path.join(lc_root_path, f"planethunters/Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
         print(f"Found {len(fits_files)} files")
-        with trange(len(fits_files)) as t: 
-            for i, fits_file in enumerate(fits_files):
-                # read the file
-                time, flux, file_name = _read_lc(fits_file)
-                if time is None:
-                    continue
-                
-                # bin flux
-                N = len(time)
-                n = int(np.floor(N / bin_factor) * bin_factor)
-                X = np.zeros((2, n))
-                X[0, :] = time[:n]
-                X[1, :] = flux[:n]
-                Xb = rebin(X, (2, int(n / bin_factor)))
-                time_binned = Xb[0]
-                flux_binned = Xb[1]
+        # with trange(len(fits_files)) as t: 
+        for i, fits_file in enumerate(fits_files):
+            # read the file
+            time, flux, file_name = _read_lc(fits_file)
+            if time is None:
+                continue
+            
+            # bin flux
+            N = len(time)
+            n = int(np.floor(N / bin_factor) * bin_factor)
+            X = np.zeros((2, n))
+            X[0, :] = time[:n]
+            X[1, :] = flux[:n]
+            Xb = rebin(X, (2, int(n / bin_factor)))
+            time_binned = Xb[0]
+            flux_binned = Xb[1]
 
-                file_name += f"_binfac-{bin_factor}.csv"
+            file_name += f"_binfac-{bin_factor}.csv"
 
-                # save the file
-                file_name = os.path.join(save_path, "Sector{}".format(sector), file_name)
-                pd.DataFrame({"time": time_binned, "flux": flux_binned}).to_csv(file_name, index=False)
-                # np.savetxt(file_name, flux, delimiter=",") # csv
-                t.update()
+            # save the file
+            file_name = os.path.join(save_path, "Sector{}".format(sector), file_name)
+            pd.DataFrame({"time": time_binned, "flux": flux_binned}).to_csv(file_name, index=False)
+            # np.savetxt(file_name, flux, delimiter=",") # csv
+            if i == 2:
+                break
+                # t.update()
 
 
 def rebin(arr, new_shape):
@@ -114,9 +116,22 @@ def _read_lc(lc_file):
     try:
         with pf.open(lc_file) as hdul:
             d = hdul[1].data
+            hdr = hdul[1].header
             time = d["TIME"]   # currently not using time
             flux = d["PDCSAP_FLUX"]  # the processed flux
-            
+            qual = d['QUALITY']
+
+            l = np.isfinite(time) * np.isfinite(flux) * (qual == 0)
+            l_alt = (qual == 0)
+            print(lc_file)
+            print("l", np.sum(l), "l_alt", np.sum(l_alt))
+            print(len(time))
+            time    = time[l]       # only taking the quality data
+            print(len(time))
+            flux    = flux[l]
+
+            # TODO 
+                    
             t0 = time[0]  # make the time start at 0 (so that the timeline always runs from 0 to 27.8 days)
             time -= t0
 
@@ -127,7 +142,11 @@ def _read_lc(lc_file):
             tessmag = hdul[0].header["TESSMAG"]
             teff = hdul[0].header["TEFF"]
             srad = hdul[0].header["RADIUS"]
-            file_name = f"tic-{tic}_sec-{sec}_cam-{cam}_chi-{chi}_tessmag-{tessmag}_teff-{teff}_srad-{srad}"
+            cdpp_0_5 =hdr["CDPP0_5"]
+            cdpp_1_0 = hdr["CDPP1_0"]
+            cdpp_2_0 = hdr["CDPP2_0"]
+
+            file_name = f"tic-{tic}_sec-{sec}_cam-{cam}_chi-{chi}_tessmag-{tessmag}_teff-{teff}_srad-{srad}_cdpp05-{cdpp_0_5}_cdpp1-{cdpp_1_0}_cdpp2-{cdpp_2_0}.csv"
     except:
         print("Error in fits file: ", lc_file)
         return None, None, None
@@ -138,7 +157,7 @@ def _read_lc(lc_file):
 if __name__ == "__main__":
     # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
-    SECTORS = [16]
+    SECTORS = [10]
     # SECTORS = list(range(31, 38))
 
     # parse args
@@ -146,7 +165,7 @@ if __name__ == "__main__":
     ap.add_argument("--lc-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/TESS")
     ap.add_argument("--planets-root-path", type=str, default="/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets")
     ap.add_argument("--labels-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels")
-    ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs")
+    ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp")
     ap.add_argument("--planets-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/planet_csvs")
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--skip-planets", action="store_true")

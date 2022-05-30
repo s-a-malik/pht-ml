@@ -1,6 +1,7 @@
 """
 """
 
+from git import Object
 import numpy as np
 import torch
 
@@ -121,8 +122,15 @@ class RandomShift(object):
             n = int(np.floor(N * self.permute_fraction))
             start1 = np.random.randint(0, N - n)
             end1 = start1 + n
-            start2 = np.random.randint(0, N - n)
-            end2 = start2 + n
+            # check not overlapping sections
+            overlapping = True
+            while overlapping:
+                start2 = np.random.randint(0, N - n)
+                end2 = start2 + n
+                if (start1 < start2 < end1) or (start1 < end2 < end1):
+                    overlapping = True
+                else:
+                    overlapping = False
             x[start1:end1], x[start2:end2] = x[start2:end2], x[start1:end1]
 
         return x
@@ -153,12 +161,45 @@ class GaussianNoise(object):
         return x
 
 
+# class RemoveOutliers(object):
+#     """Remove data which is more than percentage away from the median
+#     Params:
+#     - percent_change (float): remove data which is more than this fraction away from the median
+#     """
+#     def __init__(self, percent_change=None):
+#         self.percent_change = percent_change
+    
+#     def __call__(self, x):
+#         # check if normalised already
+#         median = np.nanmedian(x)
+#         if np.isclose(median, 0):
+#             threshold = self.percent_change
+#         else:
+#             threshold = self.percent_change * median
+        
+#         x[np.abs(x - median) > threshold] = np.nan
+
+#         return x
+
+
 class RemoveOutliers(object):
-    """Remove data which is more than 2 std away from the median
+    """Remove data which is more than x rolling standard deviations away from the median
+    Params:
+    - std_dev (float): remove data which is more than this fraction away from the median
     """
-    def __init__(self, threshold_std=2):
-        self.threshold_std = threshold_std
+    def __init__(self, window=200, std_dev=None):
+        self.std_dev = std_dev
+        self.window = window
     
     def __call__(self, x):
-        x[np.abs(x - np.nanmedian(x)) > self.threshold_std * np.nanstd(x)] = np.nan
+        # check if normalised already
+        median = np.nanmedian(x)
+        if np.isclose(median, 0):
+            # compute the rolling standard deviation along a window in the time axis
+            pass
+        else:
+            threshold = self.std_dev * median
+        
+        x[np.abs(x - median) > threshold] = np.nan
+        
         return x

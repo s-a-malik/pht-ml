@@ -57,6 +57,10 @@ def parse_args():
                         type=float,
                         default=0.1,
                         help="Fraction of light curve to be randomly deleted.")
+    parser.add_argument("--outlier-fraction",
+                        type=float,
+                        default=0.15,
+                        help="remove data points further than this fraction away from median.")
     parser.add_argument("--noise-std",
                         type=float,
                         default=0.0001,
@@ -118,7 +122,7 @@ def parse_args():
                         help="random seed")
     parser.add_argument("--batch-size",
                         type=int,
-                        default=512,
+                        default=256,
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
@@ -173,7 +177,7 @@ def parse_args():
                         help="wandb experiment name")
     parser.add_argument("--example-save-freq",
                         type=int,
-                        default=10,
+                        default=50,
                         help="save example predictions on val set every n epochs")
 
     args = parser.parse_args(sys.argv[1:])

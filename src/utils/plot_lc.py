@@ -123,7 +123,7 @@ def plot_lc(sec, tic_id, binfac):
 
     # open the file in context manager
     with pf.open(lcfile) as hdul:
-        print(hdul.info())
+        # print(hdul.info())
 
         ## import all the header information,
         tic = int(hdul[0].header["TICID"])
@@ -225,9 +225,12 @@ def plot_lc(sec, tic_id, binfac):
 
     ## define that length on the x axis - I don't want it to display the 0 point
     delta_flux = np.nanmax(f2[l2]) - np.nanmin(f2[l2])
+    print(delta_flux, np.nanmin(f2[l2]), np.nanmax(f2[l2]))
     ## set the y lim.
     percent_change = delta_flux * 0.1
-    ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
+    print(percent_change)
+    print(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
+    # ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
     ## label the axis.
     ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
     ## define tick marks/axis parameters
@@ -238,7 +241,7 @@ def plot_lc(sec, tic_id, binfac):
     ax.yaxis.set_minor_locator(minorLocator)
     ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
-    ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
+    ax.tick_params(axis="y", direction="in", pad=-50, color="white", labelcolor="white")
     ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
     ax.set_xlabel("Time (days)", fontsize=10, color="white")
 
@@ -246,7 +249,6 @@ def plot_lc(sec, tic_id, binfac):
     ax.set_facecolor("#03012d")
 
     ## save the images
-    # im_name = "tess%09d_scc%04s_LC.png" % (tic, scc)
     _, file_name = os.path.split(lcfile)
     save_name = file_name + f"_binfac-{binfac}.png"
     path = "/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots"
@@ -261,6 +263,7 @@ def plot_lc(sec, tic_id, binfac):
     # plot the transformed light curve
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.RemoveOutliers(percent_change=0.1),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
@@ -268,7 +271,7 @@ def plot_lc(sec, tic_id, binfac):
 
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(threshold_std=10),
+        transforms.RemoveOutliers(percent_change=0.1),
         transforms.MirrorFlip(prob=0.0),
         transforms.RandomDelete(prob=1.0, delete_fraction=0.1),
         transforms.RandomShift(prob=1.0, permute_fraction=0.1),
@@ -310,7 +313,7 @@ def plot_lc(sec, tic_id, binfac):
     delta_flux = np.nanmax(flux_binned_val_transformed) - np.nanmin(flux_binned_val_transformed)
     ## set the y lim.
     percent_change = delta_flux * 0.1
-    ax.set_ylim(np.nanmin(flux_binned_val_transformed) - percent_change, np.nanmax(flux_binned_val_transformed) + percent_change)
+    # ax.set_ylim(np.nanmin(flux_binned_val_transformed) - percent_change, np.nanmax(flux_binned_val_transformed) + percent_change)
 
     ## label the axis.
     ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
@@ -322,14 +325,14 @@ def plot_lc(sec, tic_id, binfac):
     ax.yaxis.set_minor_locator(minorLocator)
     ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
     ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
-    ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
+    ax.tick_params(axis="y", direction="in", pad=-50, color="white", labelcolor="white")
     ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
     ax.set_xlabel("Time (days)", fontsize=10, color="white")
     # ax.set_axis_bgcolor("#03012d")  # depending on what version of Python you're using.
     ax.set_facecolor("#03012d")
 
     # legend
-    ax.legend(loc="upper left", fontsize=10, facecolor="white", framealpha=0.5)
+    ax.legend(loc="upper right", fontsize=10, facecolor="white", framealpha=0.5)
 
     ## save the images
     _, file_name = os.path.split(lcfile)
@@ -357,11 +360,15 @@ if __name__ == "__main__":
     ap.add_argument("--binfac", type=int, help="Binning factor", default=3)
     ap.add_argument("--tic-id", type=int, help="TIC ID", default=None)
     ap.add_argument("--sec", type=int, help="Sector", default=None)
+    ap.add_argument("--seed", type=int, help="Seed", default=0)
 
     args = ap.parse_args()
     binfac = args.binfac
     tic_id = args.tic_id
     sec = args.sec
+    seed = args.seed
+    # set seed
+    np.random.seed(seed)
 
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector1/light_curves/two_min/tess2018206045859-s0001-0000000008195886-0120-s_lc.fits"
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters/Rel10/Sector10/light_curves/two_min/tess2019085135100-s0010-0000000001627611-0140-s_lc.fit"
