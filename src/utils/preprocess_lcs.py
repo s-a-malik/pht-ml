@@ -50,7 +50,7 @@ def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
     """Preprocesses light curves into csv files with names containing the metadata.
     Loads fits files from each sector, takes PDCSAP_FLUX and time, bins flux, and saves to csv files. 
     Metadata in the file name in case this is useful: tic_id, sector, samera, ccd, tess magnitude, effective temperature, radius
-    File naming convention: {save_path}/Sector{sector}/tic-{tic_id}_sec-{sector}_cam-{camera}_chi-{ccd}_tessmag-{}_teff-{teff}_srad-{radius}_binfac-{bin_factor}.csv
+    File naming convention: {save_path}/Sector{sector}/tic-{tic_id}_sec-{sector}_cam-{camera}_chi-{ccd}_tessmag-{}_teff-{teff}_srad-{radius}_cdpp05-{cdpp_0_5}_cdpp1-{cdpp_1_0}_cdpp2-{cdpp_2_0}_binfac-{bin_factor}.csv
     Params:
     - lc_root_path (str): path to lc fits files
     - save_path (str): path to save csv files
@@ -65,36 +65,37 @@ def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
         # get the list of files in the sector
         fits_files = glob(os.path.join(lc_root_path, f"planethunters/Rel{sector}/Sector{sector}/**/*.fit*"), recursive=True)
         print(f"Found {len(fits_files)} files")
-        # with trange(len(fits_files)) as t: 
-        for i, fits_file in enumerate(fits_files):
-            # read the file
-            time, flux, file_name = _read_lc(fits_file)
-            if time is None:
-                continue
-            
-            # bin flux
-            N = len(time)
-            n = int(np.floor(N / bin_factor) * bin_factor)
-            X = np.zeros((2, n))
-            X[0, :] = time[:n]
-            X[1, :] = flux[:n]
-            Xb = rebin(X, (2, int(n / bin_factor)))
-            time_binned = Xb[0]
-            flux_binned = Xb[1]
+        with trange(len(fits_files)) as t: 
+            for i, fits_file in enumerate(fits_files):
+                # read the file
+                time, flux, file_name = _read_lc(fits_file)
+                if time is None:
+                    continue
+                
+                # bin flux
+                N = len(time)
+                n = int(np.floor(N / bin_factor) * bin_factor)
+                X = np.zeros((2, n))
+                X[0, :] = time[:n]
+                X[1, :] = flux[:n]
+                Xb = rebin(X, (2, int(n / bin_factor)))
+                time_binned = Xb[0]
+                flux_binned = Xb[1]
 
-            file_name += f"_binfac-{bin_factor}.csv"
+                file_name += f"_binfac-{bin_factor}.csv"
 
-            # save the file
-            file_name = os.path.join(save_path, "Sector{}".format(sector), file_name)
-            pd.DataFrame({"time": time_binned, "flux": flux_binned}).to_csv(file_name, index=False)
-            # np.savetxt(file_name, flux, delimiter=",") # csv
-            if i == 2:
-                break
-                # t.update()
+                # save the file
+                file_name = os.path.join(save_path, "Sector{}".format(sector), file_name)
+                pd.DataFrame({"time": time_binned, "flux": flux_binned}).to_csv(file_name, index=False)
+
+                t.update()
 
 
 def rebin(arr, new_shape):
-    """Function to bin the data to make it easier to visualise.
+    """Function to bin the data. Uses nanmean to deal with missing values.
+    Params:
+    - arr (np.array): array to bin
+    - new_shape (tuple): shape of the new array
     """
     shape = (
         new_shape[0],
@@ -102,7 +103,8 @@ def rebin(arr, new_shape):
         new_shape[1],
         arr.shape[1] // new_shape[1],
     )
-    return arr.reshape(shape).mean(-1).mean(1)
+    return np.nanmean(np.nanmean(arr.reshape(shape), axis=(-1)), axis=1)
+    # return arr.reshape(shape).mean(-1).mean(1)
 
 
 def _read_lc(lc_file):
@@ -117,21 +119,16 @@ def _read_lc(lc_file):
         with pf.open(lc_file) as hdul:
             d = hdul[1].data
             hdr = hdul[1].header
-            time = d["TIME"]   # currently not using time
-            flux = d["PDCSAP_FLUX"]  # the processed flux
+            time = np.array(d["TIME"])  # currently not using time
+            flux = np.array(d["PDCSAP_FLUX"])  # the processed flux
             qual = d['QUALITY']
 
-            l = np.isfinite(time) * np.isfinite(flux) * (qual == 0)
-            l_alt = (qual == 0)
-            print(lc_file)
-            print("l", np.sum(l), "l_alt", np.sum(l_alt))
-            print(len(time))
-            time    = time[l]       # only taking the quality data
-            print(len(time))
-            flux    = flux[l]
+            # l = np.isfinite(time) * np.isfinite(flux) * (qual == 0)
+            low_qual = (qual > 0)  # bad quality
+            
+            # remove bad data
+            flux[low_qual] = np.nan
 
-            # TODO 
-                    
             t0 = time[0]  # make the time start at 0 (so that the timeline always runs from 0 to 27.8 days)
             time -= t0
 
@@ -146,7 +143,7 @@ def _read_lc(lc_file):
             cdpp_1_0 = hdr["CDPP1_0"]
             cdpp_2_0 = hdr["CDPP2_0"]
 
-            file_name = f"tic-{tic}_sec-{sec}_cam-{cam}_chi-{chi}_tessmag-{tessmag}_teff-{teff}_srad-{srad}_cdpp05-{cdpp_0_5}_cdpp1-{cdpp_1_0}_cdpp2-{cdpp_2_0}.csv"
+            file_name = f"tic-{tic}_sec-{sec}_cam-{cam}_chi-{chi}_tessmag-{tessmag}_teff-{teff}_srad-{srad}_cdpp05-{cdpp_0_5}_cdpp1-{cdpp_1_0}_cdpp2-{cdpp_2_0}"
     except:
         print("Error in fits file: ", lc_file)
         return None, None, None
@@ -157,8 +154,8 @@ def _read_lc(lc_file):
 if __name__ == "__main__":
     # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
-    SECTORS = [10]
-    # SECTORS = list(range(31, 38))
+    # SECTORS = [10]
+    SECTORS = list(range(11, 25))
 
     # parse args
     ap = argparse.ArgumentParser(description="test dataloader")

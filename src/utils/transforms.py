@@ -1,8 +1,10 @@
 """
 """
 
-from git import Object
 import numpy as np
+
+import pandas as pd
+
 import torch
 
 
@@ -26,7 +28,7 @@ class NormaliseFlux(object):
     def __call__(self, x):
         x /= np.nanmedian(x)
         # median at 0
-        x -= np.nanmedian(x)
+        x -= 1
         x = x.astype(np.float64)  # to fix numpy => torch byte error
         return x
 
@@ -151,55 +153,58 @@ class MirrorFlip(object):
 class GaussianNoise(object):
     """Add Gaussian noise to the data
     """
-    def __init__(self, prob, std=0.1):
+    def __init__(self, prob, window=200, std=0.5):
         self.prob = prob
+        self.window = window
         self.std = std
     
     def __call__(self, x):
         if np.random.rand() < self.prob:
-            x += np.random.normal(0, self.std, len(x))
+            # calculate rolling std
+            rolling_std = pd.Series(x).rolling(self.window).apply(lambda x : np.nanstd(x)).fillna(method='bfill').values
+            # add noise (keeping the original nans as nans)
+            x += np.random.normal(0, rolling_std*self.std)
+            # x = np.nansum([x, np.random.normal(0, rolling_std*self.std)], axis=0)
+            # add the nans back again
+            # x[x == 0] = np.nan
         return x
 
 
-# class RemoveOutliers(object):
-#     """Remove data which is more than percentage away from the median
-#     Params:
-#     - percent_change (float): remove data which is more than this fraction away from the median
-#     """
-#     def __init__(self, percent_change=None):
-#         self.percent_change = percent_change
-    
-#     def __call__(self, x):
-#         # check if normalised already
-#         median = np.nanmedian(x)
-#         if np.isclose(median, 0):
-#             threshold = self.percent_change
-#         else:
-#             threshold = self.percent_change * median
-        
-#         x[np.abs(x - median) > threshold] = np.nan
-
-#         return x
-
-
-class RemoveOutliers(object):
-    """Remove data which is more than x rolling standard deviations away from the median
+class RemoveOutliersPercent(object):
+    """Remove data which is more than percentage away from the median
     Params:
-    - std_dev (float): remove data which is more than this fraction away from the median
+    - percent_change (float): remove data which is more than this fraction away from the median
     """
-    def __init__(self, window=200, std_dev=None):
-        self.std_dev = std_dev
-        self.window = window
+    def __init__(self, percent_change=None):
+        self.percent_change = percent_change
     
     def __call__(self, x):
         # check if normalised already
         median = np.nanmedian(x)
         if np.isclose(median, 0):
-            # compute the rolling standard deviation along a window in the time axis
-            pass
+            threshold = self.percent_change
         else:
-            threshold = self.std_dev * median
+            threshold = self.percent_change * median
         
         x[np.abs(x - median) > threshold] = np.nan
+
+        return x
+
+
+class RemoveOutliers(object):
+    """Remove data which is more than x rolling standard deviations away from the median
+    Params:
+    - std_dev (float): remove data which is more than this many rolling stds away from the rolling median
+    """
+    def __init__(self, window=200, std_dev=3.0):
+        self.std_dev = std_dev
+        self.window = window
+    
+    def __call__(self, x):
+        # compute rolling standard deviation and median
+        rolling_std = pd.Series(x).rolling(self.window).apply(lambda x : np.nanstd(x)).fillna(method='bfill').values
+        rolling_median = pd.Series(x).rolling(self.window).apply(lambda x : np.nanmedian(x)).fillna(method='bfill').values
+        # remove outliers
+        x[np.abs(x - rolling_median) > self.std_dev * rolling_std] = np.nan
         
         return x

@@ -48,6 +48,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     tics = []
     secs = []
     tic_injs = []
+    snrs = []
     if save_examples != -1:
         fluxs = []
     total = 0
@@ -106,6 +107,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             tics += x["tic"].tolist()
             secs += x["sec"].tolist()
             tic_injs += x["tic_inj"].tolist()
+            snrs += x["snr"].tolist()
             total += logits.size(0)
 
             t.update()
@@ -128,7 +130,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         for i, idx in enumerate(conf_preds_sorted):
             plt.clf()
             fig, ax = utils.plot_lc(fluxs[idx])
-            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
             wandb.log({f"conf_preds_{i}": wandb.Image(fig)}, step=save_examples)
 
         # most uncertain preds (closest to 0.5)
@@ -136,7 +138,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         unc_preds_sorted = unc_preds_sorted[:5]
         for i, idx in enumerate(unc_preds_sorted):
             fig, ax = utils.plot_lc(fluxs[idx])
-            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
             wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=save_examples)
 
         # most lossy preds (highest difference between prob and target)
@@ -144,7 +146,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         loss_preds_sorted = loss_preds_sorted[:5]
         for i, idx in enumerate(loss_preds_sorted):
             fig, ax = utils.plot_lc(fluxs[idx])
-            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
             wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=save_examples)
 
         wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),

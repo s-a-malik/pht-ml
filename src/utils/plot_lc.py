@@ -39,7 +39,8 @@ def rebin(arr, new_shape):
         new_shape[1],
         arr.shape[1] // new_shape[1],
     )
-    return arr.reshape(shape).mean(-1).mean(1)
+    return np.nanmean(np.nanmean(arr.reshape(shape), axis=(-1)), axis=1)    # nan friendly
+    # return arr.reshape(shape).mean(-1).mean(1)
 
 
 def plot_from_csv(lcfile):
@@ -230,7 +231,7 @@ def plot_lc(sec, tic_id, binfac):
     percent_change = delta_flux * 0.1
     print(percent_change)
     print(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
-    # ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
+    ax.set_ylim(np.nanmin(f2[l2]) - percent_change, np.nanmax(f2[l2]) + percent_change)
     ## label the axis.
     ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
     ## define tick marks/axis parameters
@@ -263,24 +264,25 @@ def plot_lc(sec, tic_id, binfac):
     # plot the transformed light curve
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(percent_change=0.1),
+        transforms.RemoveOutliers(window=200, std_dev=3),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
     ])
 
+    # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(percent_change=0.1),
+        transforms.RemoveOutliers(window=100, std_dev=4),
         transforms.MirrorFlip(prob=0.0),
-        transforms.RandomDelete(prob=1.0, delete_fraction=0.1),
-        transforms.RandomShift(prob=1.0, permute_fraction=0.1),
-        transforms.GaussianNoise(prob=1.0, std=0.0001),
-        # transforms.BinData(bin_factor=3),  # bin before imputing
+        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
+        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
+        transforms.GaussianNoise(prob=1.0, window=100, std=0.2),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
     ])
+
     other_flux_binned = deepcopy(flux_binned)
     flux_binned_train_transformed = training_transform(flux_binned)
     flux_binned_val_transformed = val_transform(other_flux_binned)
@@ -357,9 +359,9 @@ def get_lc_file(sec, tic_id):
 if __name__ == "__main__":
 
     ap = ArgumentParser(description="Script to plot tic ids")
-    ap.add_argument("--binfac", type=int, help="Binning factor", default=3)
-    ap.add_argument("--tic-id", type=int, help="TIC ID", default=None)
-    ap.add_argument("--sec", type=int, help="Sector", default=None)
+    ap.add_argument("--binfac", type=int, help="Binning factor", default=7)
+    ap.add_argument("--tic-id", type=int, help="TIC ID", default=461196191)
+    ap.add_argument("--sec", type=int, help="Sector", default=10)
     ap.add_argument("--seed", type=int, help="Seed", default=0)
 
     args = ap.parse_args()
@@ -372,9 +374,9 @@ if __name__ == "__main__":
 
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector1/light_curves/two_min/tess2018206045859-s0001-0000000008195886-0120-s_lc.fits"
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters/Rel10/Sector10/light_curves/two_min/tess2019085135100-s0010-0000000001627611-0140-s_lc.fit"
-    plot_lc(sec, tic_id, binfac)
+    # plot_lc(sec, tic_id, binfac)
 
     # lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvtor10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999_binfac-5.csv"
-    # lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs/Sector10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999.csv"
+    lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp/Sector10/tic-461196191_sec-10_cam-2_chi-3_tessmag-8.38300037_teff-5552.0_srad-3.71780992_cdpp05-157.23878479_cdpp1-119.15205383_cdpp2-88.38750458_binfac-7.csv"
 
-    # plot_from_csv(lc_csv)
+    plot_from_csv(lc_csv)

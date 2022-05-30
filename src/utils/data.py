@@ -18,7 +18,6 @@ import torchvision
 import numpy as np
 import pandas as pd
 
-import astropy.io.fits as pf
 from astropy.table import Table
 
 # import transforms
@@ -31,10 +30,10 @@ TRAIN_SECTORS_DEBUG = [10]
 TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
 # TRAIN_SECTORS_FULL = [10,11,12]
 
-VAL_SECTORS_DEBUG = [13]
+VAL_SECTORS_DEBUG = [10]
 VAL_SECTORS_FULL = [22,23,24]
 
-TEST_SECTORS_DEBUG = [14]
+TEST_SECTORS_DEBUG = [10]
 TEST_SECTORS_FULL = [37]
 # TEST_SECTORS_FULL = [14]
 
@@ -78,6 +77,7 @@ class LCData(torch.utils.data.Dataset):
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
+        self.min_snr = min_snr
         self.single_transit_only = single_transit_only
         self.transform = transform
         self.store_cache = store_cache
@@ -90,7 +90,7 @@ class LCData(torch.utils.data.Dataset):
         self.lc_file_list = []
         for sector in self.sectors:
             # print(f"sector: {sector}")
-            new_files = glob(f"{self.data_root_path}/lc_csvs/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
+            new_files = glob(f"{self.data_root_path}/lc_csvs_cdpp/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
         print("total num. LC files found: ", len(self.lc_file_list))
@@ -149,15 +149,8 @@ class LCData(torch.utils.data.Dataset):
         - y (float): volunteer confidence score (1 if synthetic transit)
         """
         # check if we have this data cached
-        # if idx in self.cache:
-        #     return self.cache[idx]
-
         if idx in self.cache:
-            # (x_cache, y_cache) = self.cache[idx]
             (x, y) = self.cache[idx]
-            # deepcopy to avoid changing the cached data
-            # x = deepcopy(x_cache)
-            # y = deepcopy(y_cache)
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
@@ -183,6 +176,8 @@ class LCData(torch.utils.data.Dataset):
                 # add to cache 
                 self.cache[idx] = (deepcopy(x), deepcopy(y))
 
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
+
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
             x = self._add_synthetic_transit(x)
@@ -195,11 +190,15 @@ class LCData(torch.utils.data.Dataset):
             x["depth"] = -1
             x["duration"] = -1
             x["period"] = -1
+            x["snr"] = -1
 
         # TODO add EB synthetics
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
+
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
 
         return x, y
 
@@ -266,8 +265,8 @@ class LCData(torch.utils.data.Dataset):
                         continue
                 
                 # check transit duration as well (from simulation)
-                if pl_dur < 4: 
-                    print(f"duration too short for tic {tic_id}", pl_row)
+                if pl_dur > 4: 
+                    # print(f"duration too long for tic {tic_id}", pl_row)
                     continue
 
                 pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
@@ -323,12 +322,14 @@ class LCData(torch.utils.data.Dataset):
 
             # if the SNR is lower than our threshhold, skip this target entirely. 
             # min_snr = 0.5 in the argparse - ask Nora.
-            # if (pl_snr < args.min_snr) or (pl_snr > 15): 
-            if pl_snr > self.min_snr:
+            if (pl_snr < self.min_snr) or (pl_snr > 15): 
+            # if pl_snr > self.min_snr:
+                bad_snr = True
+            else:
                 bad_snr = False
             if bad_snr:
                 num_bad += 1
-                print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"])
+                # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
                 if num_bad > 10:
                     print("too many bad SNRs. Skipping this target.")
                     return None
@@ -338,6 +339,7 @@ class LCData(torch.utils.data.Dataset):
         x["depth"] = pl_inj["depth"]
         x["duration"] = pl_inj["duration"]
         x["period"] = pl_inj["period"]
+        x["snr"] = pl_snr
         # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
 
         return x
@@ -452,8 +454,6 @@ def get_data_loaders(args):
     """
     # unpack arguments
     data_root_path = args.data_path
-    val_size = args.val_size
-    seed = args.seed
     bin_factor = args.bin_factor
     synthetic_prob = args.synthetic_prob
     eb_prob = args.eb_prob
@@ -463,7 +463,8 @@ def get_data_loaders(args):
     aug_prob = args.aug_prob
     permute_fraction = args.permute_fraction
     delete_fraction = args.delete_fraction
-    outlier_fraction = args.outlier_fraction
+    outlier_std = args.outlier_std
+    rolling_window = args.rolling_window
     noise_std = args.noise_std
     min_snr = args.min_snr
     # max_lc_length = args.max_lc_length
@@ -475,11 +476,12 @@ def get_data_loaders(args):
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(percent_change=outlier_fraction),
+        # transforms.RemoveOutliersPercent(percent_change=0.15),
+        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.MirrorFlip(prob=aug_prob),
-        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
-        transforms.GaussianNoise(prob=aug_prob, std=noise_std), # curve dependant
+        transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -488,7 +490,8 @@ def get_data_loaders(args):
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(percent_change=outlier_fraction),
+        # transforms.RemoveOutliersPercent(percent_change=0.15),
+        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -496,7 +499,8 @@ def get_data_loaders(args):
 
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(percent_change=outlier_fraction),
+        # transforms.RemoveOutliersPercent(percent_change=0.15),
+        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -569,42 +573,42 @@ def get_data_loaders(args):
 
 
 if __name__ == "__main__":
-    import sys 
-    sys.path.append('/mnt/zfsusers/shreshth/pht_project/code/pht_ml/src')
 
     # parse data args only
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
     ap.add_argument("--debug", action="store_true")
-    ap.add_argument("--val-size", type=float, default=0.2)
     ap.add_argument("--bin-factor", type=int, default=7)
-    ap.add_argument("--seed", type=int, default=123)
-    ap.add_argument("--synthetic-prob", type=float, default=0.5)
+    ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
-    ap.add_argument("--aug-prob", type=float, default=0.1, help="Probability of augmenting data with random defects.")
+    ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
     ap.add_argument("--permute-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly permuted.")
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
-    ap.add_argument("--outlier-fraction", type=float, default=0.1, help="Remove points further than this from the median.")
-    ap.add_argument("--min-snr", type=float, default=0.5, help="Min signal to noise ratio for planet injection.")
-    ap.add_argument("--noise-std", type=float, default=0.0001, help="Standard deviation of noise added to light curve for training.")
-    ap.add_argument("--batch-size", type=int, default=256)
-    ap.add_argument("--num-workers", type=int, default=4)
+    ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
+    ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
+    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
+    ap.add_argument("--batch-size", type=int, default=8)
+    ap.add_argument("--num-workers", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
     args = ap.parse_args()
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
 
     train_dataloader, val_dataloader, test_dataloader = get_data_loaders(args)
     with trange(len(train_dataloader)) as t:
         for i, (x, y) in enumerate(train_dataloader):
-            if i % 100 == 0:
+            if i == 0:
                 print(i, x, y)
-            # print(x["flux"].shape, y.shape)
-            for j in range(len(x)):
-                simulated = "sim" if x["tic_inj"][j] != -1 else "real"
-                print(simulated)
-                plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
-                if j == 10:
-                    break
-            # break
+                # print(x["flux"].shape, y.shape)
+                for j in range(len(x)):
+                    simulated = "sim" if x["tic_inj"][j] != -1 else "real"
+                    print(simulated)
+                    plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                    if j == 5:
+                        break
+                break
             t.update()
     
