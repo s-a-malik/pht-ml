@@ -617,6 +617,8 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--multi-transit", action="store_true")
+    ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
