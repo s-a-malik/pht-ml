@@ -122,36 +122,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
     # save example predictions to wandb for inspection
     if save_examples != -1:
-        probs = np.array(probs)
-        # save example predictions
-        # most confident preds
-        conf_preds_sorted = np.argsort(probs)[::-1]
-        conf_preds_sorted = conf_preds_sorted[:5]
-        for i, idx in enumerate(conf_preds_sorted):
-            plt.clf()
-            fig, ax = utils.plot_lc(fluxs[idx])
-            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
-            wandb.log({f"conf_preds_{i}": wandb.Image(fig)}, step=save_examples)
-
-        # most uncertain preds (closest to 0.5)
-        unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
-        unc_preds_sorted = unc_preds_sorted[:5]
-        for i, idx in enumerate(unc_preds_sorted):
-            fig, ax = utils.plot_lc(fluxs[idx])
-            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
-            wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=save_examples)
-
-        # most lossy preds (highest difference between prob and target)
-        loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
-        loss_preds_sorted = loss_preds_sorted[:5]
-        for i, idx in enumerate(loss_preds_sorted):
-            fig, ax = utils.plot_lc(fluxs[idx])
-            ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
-            wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=save_examples)
-
-        wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),
-                    "pr": wandb.plot.pr_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1))},
-                    step=save_examples)
+        utils.save_examples(fluxs, preds, targets, targets_bin, tics, secs, tic_injs, snrs)
 
     if task == "test":
         return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total
