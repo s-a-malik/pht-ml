@@ -51,7 +51,7 @@ def parse_args():
                         help="Probability of augmenting data with random defects.")
     parser.add_argument("--permute-fraction",
                         type=float,
-                        default=0.1,
+                        default=0.25,
                         help="Fraction of light curve to be randomly permuted.")
     parser.add_argument("--delete-fraction",
                         type=float,

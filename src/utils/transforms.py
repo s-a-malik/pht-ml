@@ -166,7 +166,17 @@ class GaussianNoise(object):
     def __call__(self, x):
         if np.random.rand() < self.prob:
             # calculate rolling std
-            rolling_std = pd.Series(x).rolling(self.window).apply(lambda x : np.nanstd(x)).fillna(method='bfill').values
+            # this is too slow
+            # rolling_std = pd.Series(x).rolling(self.window).apply(lambda x : np.nanstd(x)).fillna(method='bfill').values
+
+            # numpy version
+            rolling_std = np.zeros(x.shape)
+            nrows = len(x) - self.window + 1
+            n = x.strides[0]
+            a2D = np.lib.stride_tricks.as_strided(x, shape=(nrows,self.window), strides=(n,n))
+            rolling_std[self.window-1:] = np.std(a2D, axis=1)
+            rolling_std[:self.window-1] = rolling_std[self.window-1]
+
             # add noise (keeping the original nans as nans)
             x += np.random.normal(0, rolling_std*self.std)
             # x = np.nansum([x, np.random.normal(0, rolling_std*self.std)], axis=0)

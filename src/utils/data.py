@@ -528,7 +528,7 @@ def get_data_loaders(args):
         transforms.NormaliseFlux(),
         transforms.MirrorFlip(prob=aug_prob),
         # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
+        transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),

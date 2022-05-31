@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 
-def preprocess_planets_flux(root_path, save_path, bin_factor, flux_type="planet"):
+def preprocess_flux(root_path, save_path, bin_factor, flux_type="planet"):
     """Bin the planet fluxes into a csv file.
     Params:
     - root_path (str): path to flux txt files
@@ -24,7 +24,7 @@ def preprocess_planets_flux(root_path, save_path, bin_factor, flux_type="planet"
     if flux_type == "planet":
         planet_files = glob(f"{root_path}/Planets_*.txt")
     elif flux_type == "eb":
-        planet_files = glob(f"{root_path}/EB_*.txt")
+        planet_files = glob(f"{root_path}/EBs_*.txt")
     else:
         raise ValueError("flux_type must be 'planet' or 'eb'")
     print(f"Found {len(planet_files)} files")
@@ -180,10 +180,10 @@ if __name__ == "__main__":
 
     if not args.skip_planets:
         print("\nPreprocessing planets")
-        preprocess_planets_flux(args.planets_root_path, args.planets_save_path, args.bin_factor, flux_type="planet")
+        preprocess_flux(args.planets_root_path, args.planets_save_path, args.bin_factor, flux_type="planet")
     if not args.skip_ebs:
         print("\nPreprocessing EBs")
-        preprocess_ebs_flux(args.eb_root_path, args.eb_save_path, args.bin_factor, flux_type="eb")
+        preprocess_flux(args.eb_root_path, args.eb_save_path, args.bin_factor, flux_type="eb")
     if not args.skip_lcs:
         print("\nPreprocessing light curves")
         preprocess_lcs(args.lc_root_path, args.save_path, SECTORS, args.bin_factor)
