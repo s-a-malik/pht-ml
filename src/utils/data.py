@@ -237,8 +237,9 @@ class LCData(torch.utils.data.Dataset):
         pl_data = {}   # dict of dicts with metadata
         # TODO better to use a dict to speed up lookup or df to save memory?
         print("loading planet metadata...")
+        idx = 0
         with trange(len(pl_files)) as t:
-            for i, pl_file in enumerate(pl_files):
+            for pl_file in pl_files:
                 # extract tic id
                 tic_id = int(pl_file.split("/")[-1].split("_")[1].split(".")[0])
                 # check if we should include this planet
@@ -267,10 +268,16 @@ class LCData(torch.utils.data.Dataset):
                 
                 # check transit duration as well (from simulation)
                 if pl_dur > 4: 
-                    # print(f"duration too long for tic {tic_id}", pl_row)
+                    print(f"duration too long for tic {tic_id}")
+                    continue
+                
+                if pl_depth < 1000:
+                    print(f"depth too low for tic {tic_id}")
                     continue
 
+                
                 pl_data[i] = {"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per}
+                idx += 1
                 t.update()
 
     
