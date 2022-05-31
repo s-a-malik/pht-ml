@@ -122,6 +122,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
     # save example predictions to wandb for inspection
     if save_examples != -1:
+        print("saving example predictions")
         utils.save_examples(fluxs, preds, targets, targets_bin, tics, secs, tic_injs, snrs, save_examples)
 
     if task == "test":
@@ -170,7 +171,6 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             # evaluate on val set
             if (args.example_save_freq != -1) and ((epoch) % args.example_save_freq == 0):
                 save_examples = epoch
-                print("saving example predictions on val set")
             else:
                 save_examples = -1
             val_loss, val_acc, val_f1, val_prec, val_rec, val_auc = evaluate(

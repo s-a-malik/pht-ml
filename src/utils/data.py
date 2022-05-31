@@ -58,6 +58,7 @@ class LCData(torch.utils.data.Dataset):
         min_snr=0.5,
         single_transit_only=True,
         transform=None,
+        preprocessing=None,
         store_cache=True
         ):
         """
@@ -69,7 +70,8 @@ class LCData(torch.utils.data.Dataset):
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
         - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
-        - transform (callable): transform to apply to the data
+        - transform (callable): transform to apply to the data in getitem
+        - preprocessing (callable): preprocessing to apply to the data (before caching)
         - store_cache (bool): whether to store all the data in RAM in advance
         """
         super(LCData, self).__init__()
@@ -83,6 +85,7 @@ class LCData(torch.utils.data.Dataset):
         self.single_transit_only = single_transit_only
         self.transform = transform
         self.store_cache = store_cache
+        self.preprocessing = preprocessing
         
         self.sectors = self._get_sectors()
 
@@ -162,6 +165,11 @@ class LCData(torch.utils.data.Dataset):
                 if self.store_cache:
                     self.cache[idx] = ({"flux": None}, None)
                 return {"flux": None}, None
+
+            # preprocessing
+            if self.preprocessing:
+                x["flux"] = self.preprocessing(x["flux"])
+
 
             # get label for this lc file (if exists), match sector 
             y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
@@ -486,11 +494,15 @@ def get_data_loaders(args):
     pin_memory = True
     debug = args.debug
 
+    # preprocessing = torchvision.transforms.Compose([
+    #     # transforms.RemoveOutliersPercent(percent_change=0.15),
+    #     # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+    # ])
+    preprocessing = None
+
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        # transforms.RemoveOutliersPercent(percent_change=0.15),
-        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.MirrorFlip(prob=aug_prob),
         # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
@@ -503,8 +515,6 @@ def get_data_loaders(args):
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        # transforms.RemoveOutliersPercent(percent_change=0.15),
-        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -512,8 +522,6 @@ def get_data_loaders(args):
 
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        # transforms.RemoveOutliersPercent(percent_change=0.15),
-        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -530,6 +538,7 @@ def get_data_loaders(args):
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
+        preprocessing=preprocessing,
         store_cache=cache
     )
 
@@ -543,6 +552,7 @@ def get_data_loaders(args):
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=val_transform,
+        preprocessing=preprocessing,
         store_cache=cache
     )
 
@@ -556,6 +566,7 @@ def get_data_loaders(args):
         min_snr=min_snr,
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
+        preprocessing=preprocessing,
         store_cache=cache
     )
 
