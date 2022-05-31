@@ -20,7 +20,7 @@ import pandas as pd
 
 from astropy.table import Table
 
-if __name__ == "main":
+if __name__ == "__main__":
     import transforms
     from utils import plot_lc
 else:
