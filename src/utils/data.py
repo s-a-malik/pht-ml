@@ -120,6 +120,11 @@ class LCData(torch.utils.data.Dataset):
             self.pl_data = self._get_pl_data()
             print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
 
+        ##### eclipsing binaries
+        if self.eb_prob > 0.0:
+            self.eb_data = self._get_eb_data()
+            print(f"using {self.eb_prob} proportion of synthetic eclipsing binaries")
+
         ##### cache data
         self.cache = {}
         if self.store_cache:
@@ -161,10 +166,10 @@ class LCData(torch.utils.data.Dataset):
             lc_file = self.lc_file_list[idx]
             x = _read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
-            if (x is None):
+            if not x["flux"]:
                 if self.store_cache:
-                    self.cache[idx] = ({"flux": None}, None)
-                return {"flux": None}, None
+                    self.cache[idx] = (x, None)
+                return x, None
 
             # preprocessing
             if self.preprocessing:
@@ -191,12 +196,14 @@ class LCData(torch.utils.data.Dataset):
         # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
 
         # probabilistically add synthetic transits, only if labels are zero.
-        if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
+        rand_num = np.random.rand()
+        if (rand_num < self.synthetic_prob) and (y == 0.0):
             x = self._add_synthetic_transit(x)
-            # if bad snr, return none
-            if x is None:
-                return {"flux": None}, None
             y = torch.tensor(1.0, dtype=torch.float)
+        # add a small delta in case eb_prob is 0.0
+        elif (self.synthetic_prob < rand_num < self.synthetic_prob + self.eb_prob + 1e-8) and (y == 0.0) and (self.eb_prob > 0.0):
+            x = self._add_synthetic_eclipse_binary(x)
+            y = torch.tensor(0.0, dtype=torch.float)
         else:
             x["tic_inj"] = -1
             x["depth"] = -1
@@ -204,8 +211,11 @@ class LCData(torch.utils.data.Dataset):
             x["period"] = -1
             x["snr"] = -1
 
-        # TODO add EB synthetics
         # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
+        
+        # if transit additions failed, return None
+        if not x["flux"]:
+            return x, None
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
@@ -234,6 +244,18 @@ class LCData(torch.utils.data.Dataset):
             return TEST_SECTORS_DEBUG
         else:
             raise ValueError(f"Invalid data split {self.data_split}")
+
+    def _get_eb_data(self):
+        """Loads the eclipsing binary data
+        """
+        return None
+
+
+    def _add_synthetic_eclipse_binary(self, x):
+        """Adds synthetic eclipsing binary data.
+        """
+        # TODO add EB synthetics
+        return None
 
 
     def _get_pl_data(self):
@@ -352,8 +374,9 @@ class LCData(torch.utils.data.Dataset):
                 num_bad += 1
                 # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
                 if num_bad > 5:
-                    print("too many bad SNRs. Skipping this target.")
-                    return None
+                    # print("too many bad SNRs. Skipping this target.")
+                    x["flux"] = None
+                    return x
         
         x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
         x["tic_inj"] = pl_inj["tic_id"]
@@ -424,8 +447,8 @@ def collate_fn(batch):
     """Collate function for filtering out corrupted data in the dataset
     Assumes that missing data are NoneType
     """
-    batch = [x for x in batch if x[0]["flux"] is not None]   # filter on missing flux 
-    batch = [x for x in batch if x[1] is not None]           # filter on missing labels
+    batch = [(x,y) for (x,y) in batch if x["flux"] is not None]   # filter on missing flux 
+    batch = [(x,y) for (x,y) in batch if y is not None]           # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
 
 
@@ -466,7 +489,7 @@ def _read_lc_csv(lc_file):
             x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
     except:
         # print("failed to read file: ", lc_file)
-        x = None
+        x = {"flux": None}
     return x
 
         
@@ -617,8 +640,6 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
-    ap.add_argument("--multi-transit", action="store_true")
-    ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
