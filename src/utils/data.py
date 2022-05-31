@@ -276,7 +276,7 @@ class LCData(torch.utils.data.Dataset):
                     continue
 
                 
-                pl_data[i] = {"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per}
+                pl_data[idx] = {"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per}
                 idx += 1
                 t.update()
 
