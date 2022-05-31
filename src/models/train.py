@@ -122,7 +122,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
     # save example predictions to wandb for inspection
     if save_examples != -1:
-        utils.save_examples(fluxs, preds, targets, targets_bin, tics, secs, tic_injs, snrs)
+        utils.save_examples(fluxs, preds, targets, targets_bin, tics, secs, tic_injs, snrs, save_examples)
 
     if task == "test":
         return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total

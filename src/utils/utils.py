@@ -115,7 +115,7 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     return fig, ax
 
 
-def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs):
+def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs, step):
     """Plot example predictions for inspection and save to wandb
     Params:
     - fluxs (list): predicted fluxes
@@ -126,6 +126,7 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
     - secs (list): secs
     - tic_injs (list): tic injections
     - snrs (list): snrs
+    - step (int): step number (epoch)
     """
     probs = np.array(probs)
     # most confident preds
@@ -135,7 +136,7 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
         plt.clf()
         fig, ax = plot_lc(fluxs[idx])
         ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
-        wandb.log({f"pos_preds_{i}": wandb.Image(fig)}, step=save_examples)
+        wandb.log({f"pos_preds_{i}": wandb.Image(fig)}, step=step)
 
     # confident negative preds
     neg_preds_sorted = np.argsort(probs)
@@ -144,7 +145,7 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
         plt.clf()
         fig, ax = plot_lc(fluxs[idx])
         ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
-        wandb.log({f"neg_preds_{i}": wandb.Image(fig)}, step=save_examples)
+        wandb.log({f"neg_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most uncertain preds (closest to 0.5)
     unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
@@ -152,7 +153,7 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
     for i, idx in enumerate(unc_preds_sorted):
         fig, ax = plot_lc(fluxs[idx])
         ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
-        wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=save_examples)
+        wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most lossy preds (highest difference between prob and target)
     loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
@@ -160,8 +161,8 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
     for i, idx in enumerate(loss_preds_sorted):
         fig, ax = plot_lc(fluxs[idx])
         ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
-        wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=save_examples)
+        wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
     wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),
                 "pr": wandb.plot.pr_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1))},
-                step=save_examples)
+                step=step)
