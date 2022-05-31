@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
     # SECTORS = [10]
-    SECTORS = list(range(11, 25))
+    SECTORS = list(range(10, 25))
 
     # parse args
     ap = argparse.ArgumentParser(description="test dataloader")

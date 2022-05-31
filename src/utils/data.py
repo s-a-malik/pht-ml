@@ -28,16 +28,16 @@ from utils.utils import plot_lc
 
 TRAIN_SECTORS_DEBUG = [10]
 # TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
-# sector 11 looks dodgy
-TRAIN_SECTORS_FULL = [10,12,13,14,15,16]
+# sector 11 looks dodgy, sector 16 empty
+TRAIN_SECTORS_FULL = [10,12,13,14,15,17]
 
 VAL_SECTORS_DEBUG = [12]
 # VAL_SECTORS_FULL = [22,23,24]
-VAL_SECTORS_FULL = [17,18,19]
+VAL_SECTORS_FULL = [18,19,20]
 
 TEST_SECTORS_DEBUG = [14]
 # TEST_SECTORS_FULL = [37]
-TEST_SECTORS_FULL = [20]
+TEST_SECTORS_FULL = [21]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
