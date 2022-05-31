@@ -262,22 +262,45 @@ def plot_lc(sec, tic_id, binfac):
     # ------------------------------------------
 
     # plot the transformed light curve
-    val_transform = torchvision.transforms.Compose([
+    # val_transform = torchvision.transforms.Compose([
+    #     transforms.NormaliseFlux(),
+    #     transforms.RemoveOutliers(window=200, std_dev=3),
+    #     transforms.ImputeNans(method="zero"),
+    #     transforms.Cutoff(length=int(17500/binfac)),
+    #     transforms.ToFloatTensor()
+    # ])
+
+    # # composed transform
+    # training_transform = torchvision.transforms.Compose([
+    #     transforms.NormaliseFlux(),
+    #     transforms.RemoveOutliers(window=100, std_dev=4),
+    #     transforms.MirrorFlip(prob=0.0),
+    #     transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
+    #     transforms.RandomShift(prob=0.0, permute_fraction=0.1),
+    #     transforms.GaussianNoise(prob=1.0, window=100, std=0.2),
+    #     transforms.ImputeNans(method="zero"),
+    #     transforms.Cutoff(length=int(17500/binfac)),
+    #     transforms.ToFloatTensor()
+    # ])
+
+    training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(window=200, std_dev=3),
+        # transforms.RemoveOutliersPercent(percent_change=0.15),
+        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+        transforms.MirrorFlip(prob=0.0),
+        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
+        transforms.GaussianNoise(prob=1.0, window=100, std=0.005),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
     ])
 
-    # composed transform
-    training_transform = torchvision.transforms.Compose([
+    # test tranforms - do not randomly delete or permute
+    val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RemoveOutliers(window=100, std_dev=4),
-        transforms.MirrorFlip(prob=0.0),
-        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
-        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-        transforms.GaussianNoise(prob=1.0, window=100, std=0.2),
+        # transforms.RemoveOutliersPercent(percent_change=0.15),
+        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
@@ -374,9 +397,9 @@ if __name__ == "__main__":
 
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector1/light_curves/two_min/tess2018206045859-s0001-0000000008195886-0120-s_lc.fits"
     # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters/Rel10/Sector10/light_curves/two_min/tess2019085135100-s0010-0000000001627611-0140-s_lc.fit"
-    # plot_lc(sec, tic_id, binfac)
+    plot_lc(sec, tic_id, binfac)
 
     # lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvtor10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999_binfac-5.csv"
     lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp/Sector10/tic-461196191_sec-10_cam-2_chi-3_tessmag-8.38300037_teff-5552.0_srad-3.71780992_cdpp05-157.23878479_cdpp1-119.15205383_cdpp2-88.38750458_binfac-7.csv"
 
-    plot_from_csv(lc_csv)
+    # plot_from_csv(lc_csv)

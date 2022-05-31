@@ -8,5 +8,5 @@
 #  --num-workers 4 --no-cache --bin-factor 3
 # --num-workers 0 --bin-factor 7 --debug --no-cache
 # --num-workers 0 --bin-factor 7 --debug
---num-workers 4 --bin-factor 7 --debug --no-cache --multi-transit --min-snr 2 --noise-std 0.005
+--num-workers 4 --bin-factor 7 --min-snr 1 --noise-std 0.005
 # --multi-transit --model dense

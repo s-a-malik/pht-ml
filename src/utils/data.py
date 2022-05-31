@@ -234,7 +234,7 @@ class LCData(torch.utils.data.Dataset):
         print(f"found {len(pl_files)} planet flux files for binfac {self.bin_factor}")
         
         # load planetary transits into RAM
-        pl_data = []   # list of dicts with metadata
+        pl_data = {}   # dict of dicts with metadata
         # TODO better to use a dict to speed up lookup or df to save memory?
         print("loading planet metadata...")
         with trange(len(pl_files)) as t:
@@ -270,7 +270,7 @@ class LCData(torch.utils.data.Dataset):
                     # print(f"duration too long for tic {tic_id}", pl_row)
                     continue
 
-                pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
+                pl_data[i] = {"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per}
                 t.update()
 
     
