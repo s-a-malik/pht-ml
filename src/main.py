@@ -10,13 +10,14 @@ import pandas as pd
 
 import torch
 
-from utils import utils
+from utils.utils import load_checkpoint
 from utils.parser import parse_args
 from utils.data import get_data_loaders
-from models.train import training_run, evaluate
+from models.train import training_run, evaluate, init_model, init_optim
+
 
 def main(args):
-
+    torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
     # random seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -40,8 +41,8 @@ def main(args):
     wandb.config.update(args)
 
     # initialise models, optimizers, data
-    model = utils.init_model(args)
-    optimizer, criterion = utils.init_optim(args, model)
+    model = init_model(args)
+    optimizer, criterion = init_optim(args, model)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
     print(f"Number of model parameters: {num_params}")
     wandb.config.num_params = num_params     # add to wandb config
@@ -50,6 +51,12 @@ def main(args):
     print(criterion)
 
     train_loader, val_loader, test_loader = get_data_loaders(args)
+    wandb.config.num_train_examples = len(train_loader.dataset)
+    wandb.config.train_sectors = train_loader.dataset.sectors
+    wandb.config.num_val_examples = len(val_loader.dataset)
+    wandb.config.val_sectors = val_loader.dataset.sectors
+    wandb.config.num_test_examples = len(test_loader.dataset)
+    wandb.config.test_sectors = test_loader.dataset.sectors
 
     # files for checkpoints
     scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
@@ -65,7 +72,7 @@ def main(args):
             run_path=f"s-a-malik/{args.wandb_project}/{args.checkpoint}",
             root=model_path)
         # load state dict
-        model, optimizer = utils.load_checkpoint(model, optimizer, args.device,
+        model, optimizer = load_checkpoint(model, optimizer, args.device,
                                                  best_file.name)
     
     # train
@@ -73,25 +80,25 @@ def main(args):
         model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
 
     # load model
-    model, optimizer = utils.load_checkpoint(model, optimizer, args.device, best_file)
+    model, optimizer = load_checkpoint(model, optimizer, args.device, best_file)
 
     # evaluate on test set
     with torch.no_grad():
         test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_tic_injs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
 
     wandb.log({
-        "test_loss": test_loss,
-        "test_acc": test_acc,
-        "test_f1": test_f1,
-        "test_prec": test_prec,
-        "test_rec": test_rec,
-        "test_auc": test_auc,
-        "test_total": test_total,
-        "test_tics": test_tics,
-        "test_secs": test_secs,
-        "test_tic_injs": test_tic_injs,
-        "test_pred": test_pred,
-        "test_targets": test_targets
+        "test/loss": test_loss,
+        "test/acc": test_acc,
+        "test/f1": test_f1,
+        "test/prec": test_prec,
+        "test/rec": test_rec,
+        "test/auc": test_auc,
+        "test/total": test_total,
+        "test/tics": test_tics,
+        "test/secs": test_secs,
+        "test/tic_injs": test_tic_injs,
+        "test/pred": test_pred,
+        "test/targets": test_targets
     })
 
     # save to a results file

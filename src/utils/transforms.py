@@ -1,7 +1,22 @@
+"""
+"""
+
 import numpy as np
 
-# SHORTEST_LC = 17546
-# SHORTEST_LC = 18900 # sector 10-14
+import pandas as pd
+
+import torch
+
+
+class ToFloatTensor(object):
+    """Convert numpy array to float tensor.
+    """
+    def __init__(self):
+        pass
+
+    def __call__(self, x):
+        return torch.tensor(x, dtype=torch.float)
+
 
 class NormaliseFlux(object):
     """Normalise the flux
@@ -11,10 +26,15 @@ class NormaliseFlux(object):
         pass
 
     def __call__(self, x):
+        # check if negative
+        if np.any(x < 0):
+            x = -x
+        # normalise
         x /= np.nanmedian(x)
         # median at 0
-        x -= np.nanmedian(x)
-        x = x.astype(np.float64)  # to fix numpy => torch byte error
+        x -= 1
+        # to fix numpy => torch byte error
+        x = x.astype(np.float64)  
         return x
 
 
@@ -90,7 +110,7 @@ class RandomDelete(object):
             N = len(x)
             n = int(np.floor(N * self.delete_fraction))
             start = np.random.randint(0, N - n)
-            x[np.arange(start, start + n)] = 0.0
+            x[np.arange(start, start + n)] = np.nan
 
         return x
 
@@ -109,8 +129,15 @@ class RandomShift(object):
             n = int(np.floor(N * self.permute_fraction))
             start1 = np.random.randint(0, N - n)
             end1 = start1 + n
-            start2 = np.random.randint(0, N - n)
-            end2 = start2 + n
+            # check not overlapping sections
+            overlapping = True
+            while overlapping:
+                start2 = np.random.randint(0, N - n)
+                end2 = start2 + n
+                if (start1 < start2 < end1) or (start1 < end2 < end1):
+                    overlapping = True
+                else:
+                    overlapping = False
             x[start1:end1], x[start2:end2] = x[start2:end2], x[start1:end1]
 
         return x
@@ -125,4 +152,64 @@ class MirrorFlip(object):
     def __call__(self, x):
         if np.random.rand() < self.prob:
             x = np.flip(x, axis=0)
+        return x
+
+
+class GaussianNoise(object):
+    """Add Gaussian noise to the data
+    """
+    def __init__(self, prob, window=200, std=0.5):
+        self.prob = prob
+        self.window = window
+        self.std = std
+    
+    def __call__(self, x):
+        if np.random.rand() < self.prob:
+            # calculate rolling std
+            rolling_std = pd.Series(x).rolling(self.window).apply(lambda x : np.nanstd(x)).fillna(method='bfill').values
+            # add noise (keeping the original nans as nans)
+            x += np.random.normal(0, rolling_std*self.std)
+            # x = np.nansum([x, np.random.normal(0, rolling_std*self.std)], axis=0)
+            # add the nans back again
+            # x[x == 0] = np.nan
+        return x
+
+
+class RemoveOutliersPercent(object):
+    """Remove data which is more than percentage away from the median
+    Params:
+    - percent_change (float): remove data which is more than this fraction away from the median
+    """
+    def __init__(self, percent_change=None):
+        self.percent_change = percent_change
+    
+    def __call__(self, x):
+        # check if normalised already
+        median = np.nanmedian(x)
+        if np.isclose(median, 0):
+            threshold = self.percent_change
+        else:
+            threshold = self.percent_change * median
+        
+        x[np.abs(x - median) > threshold] = np.nan
+
+        return x
+
+
+class RemoveOutliers(object):
+    """Remove data which is more than x rolling standard deviations away from the median
+    Params:
+    - std_dev (float): remove data which is more than this many rolling stds away from the rolling median
+    """
+    def __init__(self, window=200, std_dev=3.0):
+        self.std_dev = std_dev
+        self.window = window
+    
+    def __call__(self, x):
+        # compute rolling standard deviation and median
+        rolling_std = pd.Series(x).rolling(self.window).apply(lambda x : np.nanstd(x)).fillna(method='bfill').values
+        rolling_median = pd.Series(x).rolling(self.window).apply(lambda x : np.nanmedian(x)).fillna(method='bfill').values
+        # remove outliers
+        x[np.abs(x - rolling_median) > self.std_dev * rolling_std] = np.nan
+        
         return x

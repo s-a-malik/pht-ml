@@ -6,14 +6,14 @@ import shutil
 
 import wandb
 
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+from matplotlib.ticker import AutoMinorLocator
+
+import numpy as np
+
 import torch
 
-from models import nets
-
-# SHORTEST_LC = 17546
-# SHORTEST_LC = int(17546/7)  # binned
-# SHORTEST_LC = int(17500/7)    # 2500
-SHORTEST_LC = 18900 # sectors 10-14
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -33,61 +33,6 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def init_optim(args, model):
-    """Initialize optimizer and loss function
-    Params:
-    - args (argparse.Namespace): parsed command line arguments
-    - model (nn.Module): initialised model
-    Returns:
-    - optimizer (nn.optim): initialised optimizer
-    - criterion: initialised loss function
-    """
-    if args.optimizer == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
-    else:
-        raise NameError(f"Unknown optimizer {args.optimizer}")
-    
-    if args.loss == "BCE":
-        criterion = torch.nn.BCEWithLogitsLoss()
-    elif args.loss == "MSE":
-        criterion = torch.nn.MSELoss()
-    else:
-        raise NameError(f"Unknown loss function {args.loss}")
-
-    return optimizer, criterion
-
-
-def init_model(args):
-    """Initialize model
-    """
-    if args.model == "dense":
-        model = nets.SimpleNetwork(
-            input_dim=int(SHORTEST_LC / args.bin_factor),
-            hid_dims=args.hid_dims,
-            output_dim=1,
-            non_linearity=args.activation,
-            dropout=args.dropout
-        )
-    elif args.model == "ramjet":
-        if args.bin_factor == 3:
-            model = nets.RamjetBin3(
-                output_dim=1,
-                dropout=0.1
-            )
-        elif args.bin_factor == 7:
-            model = nets.RamjetBin7(
-                output_dim=1,
-                dropout=0.1
-            )
-    else:
-        raise NameError(f"Unknown model {args.model}")
-    model.to(args.device)
-
-
-    return model
-
-    pass
-
 def load_checkpoint(model, optimizer, device, checkpoint_file: str):
     """Loads a model checkpoint.
     Params:
@@ -106,7 +51,7 @@ def load_checkpoint(model, optimizer, device, checkpoint_file: str):
 
     return model, optimizer
 
-# save/load checkpoints
+
 def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     """Saves a model checkpoint to file. Keeps most recent and best model.
     Params:
@@ -122,3 +67,102 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     if is_best:
         shutil.copyfile(checkpoint_file, best_file)
 
+
+def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
+    """Plot light curve for debugging
+    Params:
+    - x (np.array): light curve
+    """
+
+    # close all previous figures
+    plt.close('all')
+
+    # plot it
+    fig, ax = plt.subplots(figsize=(16, 5))
+    plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
+
+    ## plot the binned and unbinned LC
+    ax.plot(list(range(len(x))), x,
+        color="royalblue",
+        marker="o",
+        markersize=1,
+        lw=0,
+    )
+    ## label the axis.
+    ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
+
+    ## define tick marks/axis parameters
+    minorLocator = AutoMinorLocator()
+    ax.xaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", which="minor", colors="w", length=3, labelsize=13)
+
+    minorLocator = AutoMinorLocator()
+    ax.yaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+
+    ax.tick_params(axis="y", direction="in", pad=-50, color="white", labelcolor="white")
+    ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
+
+    # ax.set_xlabel("Time (days)", fontsize=10, color="white")
+
+    ax.set_facecolor("#03012d")
+
+    ## save the image
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+
+    return fig, ax
+
+
+def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs, step):
+    """Plot example predictions for inspection and save to wandb
+    Params:
+    - fluxs (list): predicted fluxes
+    - probs (list): predicted probabilities
+    - targets (list): true fluxes
+    - targets_bin (list): true binary targets
+    - tics (list): tic ids
+    - secs (list): secs
+    - tic_injs (list): tic injections
+    - snrs (list): snrs
+    - step (int): step number (epoch)
+    """
+    probs = np.array(probs)
+    # most confident preds
+    conf_preds_sorted = np.argsort(probs)[::-1]
+    conf_preds_sorted = conf_preds_sorted[:5]
+    for i, idx in enumerate(conf_preds_sorted):
+        plt.clf()
+        fig, ax = plot_lc(fluxs[idx])
+        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
+        wandb.log({f"pos_preds_{i}": wandb.Image(fig)}, step=step)
+
+    # confident negative preds
+    neg_preds_sorted = np.argsort(probs)
+    neg_preds_sorted = neg_preds_sorted[:5]
+    for i, idx in enumerate(neg_preds_sorted):
+        plt.clf()
+        fig, ax = plot_lc(fluxs[idx])
+        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
+        wandb.log({f"neg_preds_{i}": wandb.Image(fig)}, step=step)
+
+    # most uncertain preds (closest to 0.5)
+    unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
+    unc_preds_sorted = unc_preds_sorted[:5]
+    for i, idx in enumerate(unc_preds_sorted):
+        fig, ax = plot_lc(fluxs[idx])
+        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+        wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=step)
+
+    # most lossy preds (highest difference between prob and target)
+    loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
+    loss_preds_sorted = loss_preds_sorted[:5]
+    for i, idx in enumerate(loss_preds_sorted):
+        fig, ax = plot_lc(fluxs[idx])
+        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+        wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
+
+    wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),
+                "pr": wandb.plot.pr_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1))},
+                step=step)

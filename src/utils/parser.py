@@ -47,16 +47,32 @@ def parse_args():
                         help="binning factor for light curves")
     parser.add_argument("--aug-prob",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Probability of augmenting data with random defects.")
     parser.add_argument("--permute-fraction",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Fraction of light curve to be randomly permuted.")
     parser.add_argument("--delete-fraction",
                         type=float,
-                        default=0.0,
+                        default=0.1,
                         help="Fraction of light curve to be randomly deleted.")
+    parser.add_argument("--outlier-std",
+                        type=float,
+                        default=4.0,
+                        help="Remove points more than this number of rolling standard deviations from the rolling mean.")
+    parser.add_argument("--rolling-window",
+                        type=int,
+                        default=100,
+                        help="Window size for rolling mean and standard deviation.")
+    parser.add_argument("--noise-std",
+                        type=float,
+                        default=0.2,
+                        help="Multiple of rolling standard deviation of noise added to light curve for training.")
+    parser.add_argument("--min-snr",
+                        type=float,
+                        default=0.5,
+                        help="Min signal to noise ratio for planet injection.")
     parser.add_argument("--multi-transit",
                         action="store_true",
                         help="take all transits in light curve from simulated data.")
@@ -99,8 +115,8 @@ def parse_args():
     # training config
     parser.add_argument("--optimizer",
                         type=str,
-                        default="adam",
-                        help="optimizer")
+                        default="adamw",
+                        help="optimizer (adam, sgd, adamw)")
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",
@@ -126,7 +142,7 @@ def parse_args():
                         help="learning rate")
     parser.add_argument("--weight-decay",
                         type=float,
-                        default=0.0,
+                        default=0.01,
                         help="weight decay")
     parser.add_argument("--momentum",
                         type=float,
@@ -145,14 +161,6 @@ def parse_args():
                         type=str,
                         default="",
                         help="wandb run id to load model from")
-    parser.add_argument("--val-size",
-                        type=float,
-                        default=0.2,
-                        help="proportion of data to use for validation")
-    parser.add_argument("--test-size",
-                        type=float,
-                        default=0.2,
-                        help="proportion of data to use for testing")
 
 
     # wandb config
@@ -167,8 +175,10 @@ def parse_args():
                         type=str,
                         default="",
                         help="wandb experiment name")
-
-
+    parser.add_argument("--example-save-freq",
+                        type=int,
+                        default=50,
+                        help="save example predictions on val set every n epochs")
 
     args = parser.parse_args(sys.argv[1:])
 

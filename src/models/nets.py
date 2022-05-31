@@ -6,79 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-class ConvBlock(nn.Module):
-    """A block containing a convolution and all the fixings that go with it.
-    Adapted from ramjet https://github.com/golmschenk/ramjet/blob/master/ramjet/models/components/light_curve_network_block.py
-    N.B. removed spatial dropout.
-    TODO port from keras
-    """
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, pooling_size: int, dropout: float = 0.1,
-                 batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
-        super(ConvBlock, self).__init__()
-        # self.convolution = nn.Conv1D(filters, kernel_size=kernel_size)
-        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
-        self.act = get_activation(non_linearity)
-        if dropout > 0:
-            self.dropout = nn.Dropout(p=dropout)
-        else:
-            self.dropout = None
-        if pooling_size > 1:
-            self.max_pooling = nn.MaxPool1d(kernel_size=pooling_size)
-        else:
-            self.max_pooling = None
-        if batch_normalization:
-            self.batch_normalization = nn.BatchNorm1d(out_channels)
-            # self.batch_normalization_input_reshape = Reshape([-1])
-            # self.batch_normalization_output_reshape = Reshape([-1, filters])
-        else:
-            self.batch_normalization = None
-
-    def forward(self, x):
-        """
-        The forward pass of the layer.
-        """
-        x = self.conv(x)
-        x = self.act(x)
-        if self.dropout is not None:
-            x = self.dropout(x)
-        if self.max_pooling is not None:
-            x = self.max_pooling(x)
-        if self.batch_normalization is not None:
-            # if self.batch_normalization_input_reshape is not None: # TODO what is this for?
-            #     x = self.batch_normalization_input_reshape(x)
-            x = self.batch_normalization(x)
-            # if self.batch_normalization_output_reshape is not None:
-            #     x = self.batch_normalization_output_reshape(x)
-        return x
-
-
-class DenseBlock(nn.Module):
-    """A block containing a dense layer and all the fixings that go with it.
-    """
-
-    def __init__(self, input_dim, output_dim: int = 1, dropout: float = 0.1,
-                 batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
-        super(DenseBlock, self).__init__()
-        self.linear = nn.Linear(input_dim, output_dim)
-        self.act = get_activation(non_linearity)
-        if dropout > 0:
-            self.dropout = nn.Dropout(p=dropout)
-        else:
-            self.dropout = None
-        if batch_normalization:
-            self.batch_normalization = nn.BatchNorm1d(output_dim)
-        else:
-            self.batch_normalization = None
-
-    def forward(self, x):
-        x = self.linear(x)
-        x = self.act(x)
-        if self.dropout is not None:
-            x = self.dropout(x)
-        if self.batch_normalization is not None:
-            x = self.batch_normalization(x)
-        return x
+from models.components import ConvBlock, DenseBlock, get_activation
 
 
 class RamjetBin3(nn.Module):
@@ -86,9 +14,10 @@ class RamjetBin3(nn.Module):
     Identifying Planetary Transit Candidates in TESS Full-frame Image Light Curves via Convolutional Neural Networks, Olmschenk 2021
     https://iopscience.iop.org/article/10.3847/1538-3881/abf4c6
     """
-    def __init__(self, output_dim=1, dropout=0.1):
+    def __init__(self, input_dim=6300, output_dim=1, dropout=0.1):
         super(RamjetBin3, self).__init__()
     
+        self.input_dim = input_dim
         self.output_dim = output_dim
         self.dropout = dropout
 
@@ -104,7 +33,12 @@ class RamjetBin3(nn.Module):
         self.block8 = ConvBlock(in_channels=256, out_channels=256, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block9 = ConvBlock(in_channels=256, out_channels=256, kernel_size=3, pooling_size=1, dropout=self.dropout)
 
-        self.block10 = DenseBlock(input_dim=256*8, output_dim=512, dropout=self.dropout)
+        if self.input_dim == 6300:
+            self.block10 = DenseBlock(input_dim=256*8, output_dim=512, dropout=self.dropout)
+        elif self.input_dim == 5833:
+            self.block10 = DenseBlock(input_dim=256*6, output_dim=512, dropout=self.dropout)
+        else:
+            raise ValueError('input_dim not supported')
         self.block11 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)
 
         self.linear_out = nn.Linear(20, self.output_dim)
@@ -137,9 +71,10 @@ class RamjetBin7(nn.Module):
     Identifying Planetary Transit Candidates in TESS Full-frame Image Light Curves via Convolutional Neural Networks, Olmschenk 2021
     https://iopscience.iop.org/article/10.3847/1538-3881/abf4c6
     """
-    def __init__(self, output_dim=1, dropout=0.1):
+    def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
         super(RamjetBin7, self).__init__()
     
+        self.input_dim = input_dim
         self.output_dim = output_dim
         self.dropout = dropout
 
@@ -152,8 +87,13 @@ class RamjetBin7(nn.Module):
         self.block5 = ConvBlock(in_channels=64, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block6 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout) # another pool
         self.block7 = ConvBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=1, dropout=self.dropout)
-        
-        self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)        # 16/17 is the number of features in the last conv block for 2600/2700 input.
+
+        if self.input_dim == 2700:
+            self.block8 = DenseBlock(input_dim=128*17, output_dim=512, dropout=self.dropout)
+        elif self.input_dim == 2500:
+            self.block8 = DenseBlock(input_dim=128*15, output_dim=512, dropout=self.dropout)
+        else:
+            raise ValueError('input_dim not supported')
         self.block9 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)
 
         self.linear_out = nn.Linear(20, self.output_dim)
@@ -248,18 +188,3 @@ class ResidualNetwork(nn.Module):
 
     def __repr__(self):
         return '{}'.format(self.__class__.__name__)
-
-
-def get_activation(name):
-    """Get activation function from name
-    """
-    if name == "ReLU":
-        return nn.ReLU()
-    elif name == "LeakyReLU":
-        return nn.LeakyReLU(negative_slope=0.01)
-    elif name == "tanh":
-        return nn.Tanh()
-    elif name == "sigmoid":
-        return nn.Sigmoid()
-    else:
-        raise NameError(f"activation {name} not defined")

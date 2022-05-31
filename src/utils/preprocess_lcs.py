@@ -50,7 +50,7 @@ def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
     """Preprocesses light curves into csv files with names containing the metadata.
     Loads fits files from each sector, takes PDCSAP_FLUX and time, bins flux, and saves to csv files. 
     Metadata in the file name in case this is useful: tic_id, sector, samera, ccd, tess magnitude, effective temperature, radius
-    File naming convention: {save_path}/Sector{sector}/tic-{tic_id}_sec-{sector}_cam-{camera}_chi-{ccd}_tessmag-{}_teff-{teff}_srad-{radius}_binfac-{bin_factor}.csv
+    File naming convention: {save_path}/Sector{sector}/tic-{tic_id}_sec-{sector}_cam-{camera}_chi-{ccd}_tessmag-{}_teff-{teff}_srad-{radius}_cdpp05-{cdpp_0_5}_cdpp1-{cdpp_1_0}_cdpp2-{cdpp_2_0}_binfac-{bin_factor}.csv
     Params:
     - lc_root_path (str): path to lc fits files
     - save_path (str): path to save csv files
@@ -87,12 +87,15 @@ def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
                 # save the file
                 file_name = os.path.join(save_path, "Sector{}".format(sector), file_name)
                 pd.DataFrame({"time": time_binned, "flux": flux_binned}).to_csv(file_name, index=False)
-                # np.savetxt(file_name, flux, delimiter=",") # csv
+
                 t.update()
 
 
 def rebin(arr, new_shape):
-    """Function to bin the data to make it easier to visualise.
+    """Function to bin the data. Uses nanmean to deal with missing values.
+    Params:
+    - arr (np.array): array to bin
+    - new_shape (tuple): shape of the new array
     """
     shape = (
         new_shape[0],
@@ -100,7 +103,8 @@ def rebin(arr, new_shape):
         new_shape[1],
         arr.shape[1] // new_shape[1],
     )
-    return arr.reshape(shape).mean(-1).mean(1)
+    return np.nanmean(np.nanmean(arr.reshape(shape), axis=(-1)), axis=1)
+    # return arr.reshape(shape).mean(-1).mean(1)
 
 
 def _read_lc(lc_file):
@@ -114,9 +118,17 @@ def _read_lc(lc_file):
     try:
         with pf.open(lc_file) as hdul:
             d = hdul[1].data
-            time = d["TIME"]   # currently not using time
-            flux = d["PDCSAP_FLUX"]  # the processed flux
+            hdr = hdul[1].header
+            time = np.array(d["TIME"])  # currently not using time
+            flux = np.array(d["PDCSAP_FLUX"])  # the processed flux
+            qual = d['QUALITY']
+
+            # l = np.isfinite(time) * np.isfinite(flux) * (qual == 0)
+            low_qual = (qual > 0)  # bad quality
             
+            # remove bad data
+            flux[low_qual] = np.nan
+
             t0 = time[0]  # make the time start at 0 (so that the timeline always runs from 0 to 27.8 days)
             time -= t0
 
@@ -127,7 +139,11 @@ def _read_lc(lc_file):
             tessmag = hdul[0].header["TESSMAG"]
             teff = hdul[0].header["TEFF"]
             srad = hdul[0].header["RADIUS"]
-            file_name = f"tic-{tic}_sec-{sec}_cam-{cam}_chi-{chi}_tessmag-{tessmag}_teff-{teff}_srad-{srad}"
+            cdpp_0_5 =hdr["CDPP0_5"]
+            cdpp_1_0 = hdr["CDPP1_0"]
+            cdpp_2_0 = hdr["CDPP2_0"]
+
+            file_name = f"tic-{tic}_sec-{sec}_cam-{cam}_chi-{chi}_tessmag-{tessmag}_teff-{teff}_srad-{srad}_cdpp05-{cdpp_0_5}_cdpp1-{cdpp_1_0}_cdpp2-{cdpp_2_0}"
     except:
         print("Error in fits file: ", lc_file)
         return None, None, None
@@ -135,19 +151,18 @@ def _read_lc(lc_file):
     return time, flux, file_name
 
 
-
 if __name__ == "__main__":
     # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
     # SECTORS = [10]
-    SECTORS = list(range(31, 38))
+    SECTORS = list(range(10, 25))
 
     # parse args
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--lc-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/TESS")
     ap.add_argument("--planets-root-path", type=str, default="/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets")
     ap.add_argument("--labels-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels")
-    ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs")
+    ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp")
     ap.add_argument("--planets-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/planet_csvs")
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--skip-planets", action="store_true")

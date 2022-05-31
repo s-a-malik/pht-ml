@@ -5,40 +5,42 @@ Utility functions and classes for data manipulation.
 import os
 import argparse
 from ast import literal_eval
-import csv
 import time
 from glob import glob
 import functools
+from copy import deepcopy
 
 from tqdm.autonotebook import trange
 
 import torch
 import torchvision
 
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
-from matplotlib.ticker import AutoMinorLocator
-
 import numpy as np
 import pandas as pd
 
-from sklearn.model_selection import train_test_split as split
-
-import astropy.io.fits as pf
 from astropy.table import Table
 
-from utils import transforms
 # import transforms
+# from utils import plot_lc
+from utils import transforms
+from utils.utils import plot_lc
+
 
 TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_FULL = [10,11,12,13]
+# TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
+# sector 11 looks dodgy, sector 16 empty
+TRAIN_SECTORS_FULL = [10,12,13,14,15,17]
+
+VAL_SECTORS_DEBUG = [12]
+# VAL_SECTORS_FULL = [22,23,24]
+VAL_SECTORS_FULL = [18,19,20]
 
 TEST_SECTORS_DEBUG = [14]
-TEST_SECTORS_FULL = [14]
+# TEST_SECTORS_FULL = [37]
+TEST_SECTORS_FULL = [21]
 
-# SHORTEST_LC = 17546 # from sector 10-38. Used to trim all the data to the same length.
-# SHORTEST_LC = int(18900/7) # binned sector 10-14
-SHORTEST_LC = 18900
+SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
+# SHORTEST_LC = 18900 # binned 7 sector 10-14
 
 #### DATASET CLASSES
 
@@ -46,45 +48,63 @@ class LCData(torch.utils.data.Dataset):
     """Light curve dataset
     """
 
-    def __init__(self, data_root_path, sectors, bin_factor=7, synthetic_prob=0.0, eb_prob=0.0, single_transit_only=True, transform=None, store_cache=True):
+    def __init__(
+        self,
+        data_root_path="/mnt/zfsusers/shreshth/pht_project/data",
+        data_split="train",
+        bin_factor=7,
+        synthetic_prob=0.0,
+        eb_prob=0.0,
+        min_snr=0.5,
+        single_transit_only=True,
+        transform=None,
+        preprocessing=None,
+        store_cache=True
+        ):
         """
         Params:
         - data_root_path (str): path to data directory 
-        - sectors (list[int]): list of sectors to load
+        - data_split (str): which data split to load (train(_debug)/val(_debug)/test(_debug))
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
-        - transform (callable): transform to apply to the data
+        - transform (callable): transform to apply to the data in getitem
+        - preprocessing (callable): preprocessing to apply to the data (before caching)
+        - store_cache (bool): whether to store all the data in RAM in advance
         """
         super(LCData, self).__init__()
 
         self.data_root_path = data_root_path
-        self.sectors = sectors
+        self.data_split = data_split
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
+        self.min_snr = min_snr
         self.single_transit_only = single_transit_only
         self.transform = transform
         self.store_cache = store_cache
+        self.preprocessing = preprocessing
+        
+        self.sectors = self._get_sectors()
 
         ####### LC data
 
         # get list of all lc files
         self.lc_file_list = []
-        for sector in sectors:
+        for sector in self.sectors:
             # print(f"sector: {sector}")
-            new_files = glob(f"{self.data_root_path}/lc_csvs/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
+            new_files = glob(f"{self.data_root_path}/lc_csvs_cdpp/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
-
         print("total num. LC files found: ", len(self.lc_file_list))
 
         ####### Label data
 
         # get all the labels
         self.labels_df = pd.DataFrame()
-        for sector in sectors:
+        for sector in self.sectors:
             self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
         print("num. total labels (including simulated data): ", len(self.labels_df))
 
@@ -101,14 +121,13 @@ class LCData(torch.utils.data.Dataset):
             print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
 
         ##### cache data
+        self.cache = {}
         if self.store_cache:
-            self.cache = {}
             print("filling cache")
             with trange(len(self)) as t:
                 for i in range(len(self)):
                     self.__getitem__(i)
                     t.update()
-
 
     def __len__(self):
         return len(self.lc_file_list)
@@ -135,61 +154,86 @@ class LCData(torch.utils.data.Dataset):
         - y (float): volunteer confidence score (1 if synthetic transit)
         """
         # check if we have this data cached
-        if self.store_cache:
-            if idx in self.cache:
-                return self.cache[idx]
-
-        # get lc file
-        lc_file = self.lc_file_list[idx]
-        x = _read_lc_csv(lc_file)
-        # if corrupt return None and skip c.f. collate_fn
-        if x is None:
-            return {"flux": None}, None
-
-        # get label for this lc file (if exists), match sector 
-        y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
-        if len(y) == 1:
-            y = torch.tensor(y[0], dtype=torch.float)
-        elif len(y) > 1:
-            # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
-            y = None
-            # self.no_label_tics.append((tic, sec))
+        if idx in self.cache:
+            (x, y) = self.cache[idx]
         else:
-            # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
-            y = None
-            # self.no_label_tics.append((tic, sec))
+            # get lc file
+            lc_file = self.lc_file_list[idx]
+            x = _read_lc_csv(lc_file)
+            # if corrupt return None and skip c.f. collate_fn
+            if (x is None):
+                if self.store_cache:
+                    self.cache[idx] = ({"flux": None}, None)
+                return {"flux": None}, None
+
+            # preprocessing
+            if self.preprocessing:
+                x["flux"] = self.preprocessing(x["flux"])
+
+
+            # get label for this lc file (if exists), match sector 
+            y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
+            if len(y) == 1:
+                y = torch.tensor(y[0], dtype=torch.float)
+            elif len(y) > 1:
+                # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
+                y = None
+                # self.no_label_tics.append((tic, sec))
+            else:
+                # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
+                y = None
+                # self.no_label_tics.append((tic, sec))
+
+            if self.store_cache:
+                # add to cache 
+                self.cache[idx] = (deepcopy(x), deepcopy(y))
+
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
 
         # probabilistically add synthetic transits, only if labels are zero.
         if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
-            # print("injecting transit")
-            pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
-            # print(pl_inj)
-            x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
-            x["tic_inj"] = pl_inj["tic_id"]
-            x["depth"] = pl_inj["depth"]
-            x["duration"] = pl_inj["duration"]
-            x["period"] = pl_inj["period"]
+            x = self._add_synthetic_transit(x)
+            # if bad snr, return none
+            if x is None:
+                return {"flux": None}, None
             y = torch.tensor(1.0, dtype=torch.float)
-            # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
-
         else:
             x["tic_inj"] = -1
             x["depth"] = -1
             x["duration"] = -1
             x["period"] = -1
+            x["snr"] = -1
 
         # TODO add EB synthetics
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-        # turn into float
-        x["flux"] = torch.tensor(x["flux"], dtype=torch.float)
-        
-        if self.store_cache:
-            # add to cache 
-            self.cache[idx] = (x, y)
+
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
 
         return x, y
+
+
+    def _get_sectors(self):
+        """
+        Returns:
+        - sectors (list): list of sectors
+        """
+        if self.data_split == "train":
+            return TRAIN_SECTORS_FULL
+        elif self.data_split == "val":
+            return VAL_SECTORS_FULL
+        elif self.data_split == "test":
+            return TEST_SECTORS_FULL
+        elif self.data_split == "train_debug":
+            return TRAIN_SECTORS_DEBUG
+        elif self.data_split == "val_debug":
+            return VAL_SECTORS_DEBUG
+        elif self.data_split == "test_debug":
+            return TEST_SECTORS_DEBUG
+        else:
+            raise ValueError(f"Invalid data split {self.data_split}")
 
 
     def _get_pl_data(self):
@@ -201,13 +245,18 @@ class LCData(torch.utils.data.Dataset):
         print(f"found {len(pl_files)} planet flux files for binfac {self.bin_factor}")
         
         # load planetary transits into RAM
-        pl_data = []   # list of dicts with metadata
+        pl_data = {}   # dict of dicts with metadata
         # TODO better to use a dict to speed up lookup or df to save memory?
         print("loading planet metadata...")
+        idx = 0
         with trange(len(pl_files)) as t:
-            for i, pl_file in enumerate(pl_files):
+            for pl_file in pl_files:
                 # extract tic id
                 tic_id = int(pl_file.split("/")[-1].split("_")[1].split(".")[0])
+                # check if we should include this planet
+                if not self._is_planet_in_data_split(tic_id):
+                    continue
+
                 # look up in table
                 pl_row = pl_table[pl_table['col1'] == tic_id]
 
@@ -215,6 +264,7 @@ class LCData(torch.utils.data.Dataset):
                 pl_dur = pl_row['col9'][0]     # transit duration
                 pl_per = pl_row['col3'][0]     # transit period                  
                 pl_flux = np.genfromtxt(str(pl_file), skip_header=1)
+
                 if len(pl_flux) == 0:
                     print(f"WARNING: no data for tic {tic_id}", pl_row)
                     print(f"skipping...")
@@ -227,16 +277,93 @@ class LCData(torch.utils.data.Dataset):
                         print(f"skipping...")
                         continue
                 
-                pl_data.append({"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per})
+                # check transit duration as well (from simulation)
+                if pl_dur > 4: 
+                    print(f"duration {pl_dur} too long for tic {tic_id}")
+                    continue
+                
+                # if pl_depth < 1000:
+                #     print(f"depth {pl_depth} too low for tic {tic_id}")
+                #     continue
+
+                
+                pl_data[idx] = {"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per}
+                idx += 1
                 t.update()
-                # if i > 10:
-                #     break
+
     
-        print(f"Loaded {len(pl_data)} simulated transits")
+        print(f"Loaded {len(pl_data)} simulated transits for {self.data_split} data split")
         # print("examples", pl_data[-5:])
 
         return pl_data
 
+
+    def _is_planet_in_data_split(self, tic_id):
+        """Checks if a planet flux should be included in this data for simulation.
+        Currently just uses the tic_id to select 1/4th of the available data for training/val.
+        """
+        if self.data_split in ["train", "train_debug"]:
+            if tic_id % 4 == 0:
+                return True
+            else:
+                return False
+        elif self.data_split in ["val", "val_debug"]:
+            if tic_id % 4 == 1:
+                return True
+            else:
+                return False
+        elif self.data_split in ["test", "test_debug"]:
+            if (tic_id % 4 == 2) or (tic_id % 4 == 3):
+                return True
+            else:
+                return False
+
+
+    def _add_synthetic_transit(self, x):
+        """Adds a synthetic transit to the data.
+        """
+        bad_snr = True
+        num_bad = 0
+        while bad_snr:
+            pl_inj = self.pl_data[np.random.randint(len(self.pl_data))]
+            # check closest cdpp of base flux to planet duration
+            durs = np.array([0.5, 1, 2])
+            durs_ = ["cdpp05", "cdpp1", "cdpp2"]
+            j = np.argmin(abs(pl_inj["duration"] - durs))
+            # check if we have cdpp data for this star
+            if durs_[j] in x:
+                x_cdpp = float(x[durs_[j]])     
+                pl_snr = pl_inj["depth"] / x_cdpp
+            else:
+                # if not, just inject anyway (backwards compatibility)
+                print(f"WARNING: no {durs_[j]} data for tic {x['tic']}")
+                pl_snr = 100.0
+
+            # print(f"pl_snr: {pl_snr}, pl_inj['depth']: {pl_inj['depth']}, pl_inj['duration']: {pl_inj['duration']}, durs: {durs_[j]} x_cdpp: {x_cdpp}")
+            # if the SNR is lower than our threshhold, skip this target entirely. 
+            # min_snr = 0.5 in the argparse - ask Nora.
+            # max_snr = 15.0 in the argparse - ask Nora.
+            if (pl_snr < self.min_snr) or (pl_snr > 25):   
+            # if pl_snr < self.min_snr:
+                bad_snr = True
+            else:
+                bad_snr = False
+            if bad_snr:
+                num_bad += 1
+                # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
+                if num_bad > 5:
+                    print("too many bad SNRs. Skipping this target.")
+                    return None
+        
+        x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
+        x["tic_inj"] = pl_inj["tic_id"]
+        x["depth"] = pl_inj["depth"]
+        x["duration"] = pl_inj["duration"]
+        x["period"] = pl_inj["period"]
+        x["snr"] = pl_snr
+        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
+
+        return x
 
     def _extract_single_transit(self, x):
         """Extract a single transit from the planet flux
@@ -317,6 +444,7 @@ def _read_lc_csv(lc_file):
         - teff (float): effective temperature
         - srad (float): stellar radius
         - binfac (float): binning factor
+        - cdpp(05,1,2) (float): CDPP at 0.5, 1, 2 hour time scales
     """
     try:
         # read the csv file
@@ -341,144 +469,104 @@ def _read_lc_csv(lc_file):
         x = None
     return x
 
-
-def _read_lc(lc_file):
-    """Read light curve .fits file
-    """
-    # open the file in context manager - catching corrupt files
-    try:
-        with pf.open(lc_file) as hdul:
-            d = hdul[1].data
-            t = d["TIME"]   # currently not using time
-            f2 = d["PDCSAP_FLUX"]  # the processed flux
-            
-            t0 = t[0]  # make the time start at 0 (so that the timeline always runs from 0 to 27.8 days)
-            t -= t0
-
-            tic = int(hdul[0].header["TICID"])
-            sec = int(hdul[0].header["SECTOR"])
-            cam = int(hdul[0].header["CAMERA"])
-            chi = int(hdul[0].header["CCD"])
-            tessmag = hdul[0].header["TESSMAG"]
-            teff = hdul[0].header["TEFF"]
-            srad = hdul[0].header["RADIUS"]
-    except:
-        print("Error in fits file: ", lc_file)
-        return None, None, None
-
-    return f2, tic, sec
-
-
-def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
-    """Plot light curve for debugging
-    Params:
-    - x (np.array): light curve
-    """
-
-    # plot it
-    fig, ax = plt.subplots(figsize=(16, 5))
-    plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
-
-    ## plot the binned and unbinned LC
-    ax.plot(list(range(len(x))), x,
-        color="royalblue",
-        marker="o",
-        markersize=1,
-        lw=0,
-        label="unbinned",
-    )
-    ## label the axis.
-    ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
-
-    ## define tick marks/axis parameters
-    minorLocator = AutoMinorLocator()
-    ax.xaxis.set_minor_locator(minorLocator)
-    ax.tick_params(direction="in", which="minor", colors="w", length=3, labelsize=13)
-
-    minorLocator = AutoMinorLocator()
-    ax.yaxis.set_minor_locator(minorLocator)
-    ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
-    ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
-
-    ax.tick_params(axis="y", direction="in", pad=-30, color="white", labelcolor="white")
-    ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
-
-    # ax.set_xlabel("Time (days)", fontsize=10, color="white")
-
-    ax.set_facecolor("#03012d")
-
-    ## save the image
-    plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
-
         
 def get_data_loaders(args):
     """Get data loaders given argparse arguments
     """
     # unpack arguments
     data_root_path = args.data_path
-    val_size = args.val_size
-    seed = args.seed
     bin_factor = args.bin_factor
     synthetic_prob = args.synthetic_prob
     eb_prob = args.eb_prob
     batch_size = args.batch_size
     num_workers = args.num_workers
     cache = not args.no_cache
+    aug_prob = args.aug_prob
+    permute_fraction = args.permute_fraction
+    delete_fraction = args.delete_fraction
+    outlier_std = args.outlier_std
+    rolling_window = args.rolling_window
+    noise_std = args.noise_std
+    min_snr = args.min_snr
     # max_lc_length = args.max_lc_length
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
     pin_memory = True
     debug = args.debug
 
+    # preprocessing = torchvision.transforms.Compose([
+    #     # transforms.RemoveOutliersPercent(percent_change=0.15),
+    #     # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+    # ])
+    preprocessing = None
+
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
-        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-        # transforms.BinData(bin_factor=3),  # bin before imputing
+        transforms.MirrorFlip(prob=aug_prob),
+        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
+        transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length)
+        transforms.Cutoff(length=max_lc_length),
+        transforms.ToFloatTensor()
     ])
 
     # test tranforms - do not randomly delete or permute
-    test_transform = torchvision.transforms.Compose([
+    val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
-        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-        # transforms.BinData(bin_factor=3),  # bin before imputing
         transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length)
+        transforms.Cutoff(length=max_lc_length),
+        transforms.ToFloatTensor()
     ])
 
-    # sectors to use
-    train_sectors = TRAIN_SECTORS_DEBUG if debug else TRAIN_SECTORS_FULL
-    test_sectors = TEST_SECTORS_DEBUG if debug else TEST_SECTORS_FULL
+    test_transform = torchvision.transforms.Compose([
+        transforms.NormaliseFlux(),
+        transforms.ImputeNans(method="zero"),
+        transforms.Cutoff(length=max_lc_length),
+        transforms.ToFloatTensor()
+    ])
 
 
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
-    train_dataset = LCData(
+    train_set = LCData(
         data_root_path=data_root_path,
-        sectors=train_sectors,
+        data_split="train_debug" if debug else "train",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
+        preprocessing=preprocessing,
         store_cache=cache
     )
-    indices = [i for i in range(len(train_dataset))]
-    train_idx, val_idx = split(indices, random_state=seed, test_size=val_size)
-    train_set = torch.utils.data.Subset(train_dataset, train_idx)
-    val_set = torch.utils.data.Subset(train_dataset, val_idx)
 
+    # same amount of synthetics in val set as in train set
+    val_set = LCData(
+        data_root_path=data_root_path,
+        data_split="val_debug" if debug else "val",
+        bin_factor=bin_factor,
+        synthetic_prob=synthetic_prob,
+        eb_prob=eb_prob,
+        min_snr=min_snr,
+        single_transit_only=not multi_transit,
+        transform=val_transform,
+        preprocessing=preprocessing,
+        store_cache=cache
+    )
+
+    # no synthetics in test set
     test_set = LCData(
         data_root_path=data_root_path,
-        sectors=test_sectors,
+        data_split="test_debug" if debug else "test",
         bin_factor=bin_factor,
-        synthetic_prob=0.0,             # TODO have synthetics in test as well?
+        synthetic_prob=0.0,
         eb_prob=0.0,
-        single_transit_only= not multi_transit,       # irrelevant for test set
+        min_snr=min_snr,
+        single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
+        preprocessing=preprocessing,
         store_cache=cache
     )
 
@@ -509,35 +597,44 @@ def get_data_loaders(args):
 
 
 if __name__ == "__main__":
-    
+
     # parse data args only
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
-    ap.add_argument("--val-size", type=float, default=0.2)
+    ap.add_argument("--debug", action="store_true")
     ap.add_argument("--bin-factor", type=int, default=7)
-    ap.add_argument("--seed", type=int, default=123)
-    ap.add_argument("--synthetic-prob", type=float, default=0.5)
+    ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
-    ap.add_argument("--batch-size", type=int, default=64)
-    ap.add_argument("--num-workers", type=int, default=4)
-    ap.add_argument("---max-lc-length", type=int, default=18900/7)
+    ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
+    ap.add_argument("--permute-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly permuted.")
+    ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
+    ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
+    ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
+    ap.add_argument("--min-snr", type=float, default=2.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
+    ap.add_argument("--batch-size", type=int, default=8)
+    ap.add_argument("--num-workers", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
 
     train_dataloader, val_dataloader, test_dataloader = get_data_loaders(args)
     with trange(len(train_dataloader)) as t:
         for i, (x, y) in enumerate(train_dataloader):
-            if i % 100 == 0:
+            if i == 0:
                 print(i, x, y)
-            # print(x["flux"].shape, y.shape)
-            # for j in range(len(x)):
-                # simulated = "sim" if x["tic_inj"][j] != -1 else "real"
-                # print(simulated)
-                # plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
-                # if j == 10:
-                    # break
-            # break
+                # print(x["flux"].shape, y.shape)
+                for j in range(len(x)):
+                    simulated = "sim" if x["tic_inj"][j] != -1 else "real"
+                    print(simulated)
+                    plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                    if j == 5:
+                        break
+                break
             t.update()
     
