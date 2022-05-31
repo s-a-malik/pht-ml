@@ -218,12 +218,12 @@ class LCData(torch.utils.data.Dataset):
             x["period"] = -1
             x["snr"] = -1
 
-        if self.plot_examples:
-            plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
-
         # if transit additions failed, return None
         if x["flux"] is None:
             return x, None
+
+        if self.plot_examples:
+            plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])

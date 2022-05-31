@@ -174,7 +174,7 @@ class GaussianNoise(object):
             nrows = len(x) - self.window + 1
             n = x.strides[0]
             a2D = np.lib.stride_tricks.as_strided(x, shape=(nrows,self.window), strides=(n,n))
-            rolling_std[self.window-1:] = np.std(a2D, axis=1)
+            rolling_std[self.window-1:] = np.nanstd(a2D, axis=1)
             rolling_std[:self.window-1] = rolling_std[self.window-1]
 
             # add noise (keeping the original nans as nans)
@@ -222,9 +222,9 @@ class RemoveOutliers(object):
         nrows = len(x) - self.window + 1
         n = x.strides[0]
         a2D = np.lib.stride_tricks.as_strided(x, shape=(nrows,self.window), strides=(n,n))
-        rolling_std[self.window-1:] = np.std(a2D, axis=1)
+        rolling_std[self.window-1:] = np.nanstd(a2D, axis=1)
         rolling_std[:self.window-1] = rolling_std[self.window-1]
-        rolling_median[self.window-1:] = np.median(a2D, axis=1)
+        rolling_median[self.window-1:] = np.nanmedian(a2D, axis=1)
         rolling_median[:self.window-1] = rolling_median[self.window-1]
 
         # remove outliers
