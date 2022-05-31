@@ -161,14 +161,6 @@ def parse_args():
                         type=str,
                         default="",
                         help="wandb run id to load model from")
-    parser.add_argument("--val-size",
-                        type=float,
-                        default=0.2,
-                        help="proportion of data to use for validation")
-    parser.add_argument("--test-size",
-                        type=float,
-                        default=0.2,
-                        help="proportion of data to use for testing")
 
 
     # wandb config
