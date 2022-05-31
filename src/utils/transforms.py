@@ -138,7 +138,8 @@ class RandomShift(object):
                     overlapping = True
                 else:
                     overlapping = False
-            x[start1:end1], x[start2:end2] = x[start2:end2], x[start1:end1]
+            # swap
+            x[start1:end1], x[start2:end2] = x[start2:end2].copy(), x[start1:end1].copy()
 
         return x
 

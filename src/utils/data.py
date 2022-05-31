@@ -525,11 +525,11 @@ def get_data_loaders(args):
     debug = args.debug
     plot_examples = args.plot_examples
 
-    preprocessing = torchvision.transforms.Compose([
-        # transforms.RemoveOutliersPercent(percent_change=0.15),
-        transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
-    ])
-    # preprocessing = None
+    # preprocessing = torchvision.transforms.Compose([
+    #     # transforms.RemoveOutliersPercent(percent_change=0.15),
+    #     transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+    # ])
+    preprocessing = None
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
