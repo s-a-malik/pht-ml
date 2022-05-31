@@ -28,15 +28,16 @@ from utils.utils import plot_lc
 
 TRAIN_SECTORS_DEBUG = [10]
 # TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
-TRAIN_SECTORS_FULL = [10,11,12,13,14,15]
+# sector 11 looks dodgy
+TRAIN_SECTORS_FULL = [10,12,13,14,15,16]
 
-VAL_SECTORS_DEBUG = [11]
+VAL_SECTORS_DEBUG = [12]
 # VAL_SECTORS_FULL = [22,23,24]
-VAL_SECTORS_FULL = [16,17,18]
+VAL_SECTORS_FULL = [17,18,19]
 
 TEST_SECTORS_DEBUG = [14]
 # TEST_SECTORS_FULL = [37]
-TEST_SECTORS_FULL = [19]
+TEST_SECTORS_FULL = [20]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -157,7 +158,9 @@ class LCData(torch.utils.data.Dataset):
             lc_file = self.lc_file_list[idx]
             x = _read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
-            if x is None:
+            if (x is None):
+                if self.store_cache:
+                    self.cache[idx] = ({"flux": None}, None)
                 return {"flux": None}, None
 
             # get label for this lc file (if exists), match sector 
@@ -172,7 +175,7 @@ class LCData(torch.utils.data.Dataset):
                 # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
                 y = None
                 # self.no_label_tics.append((tic, sec))
-            
+
             if self.store_cache:
                 # add to cache 
                 self.cache[idx] = (deepcopy(x), deepcopy(y))
@@ -268,12 +271,12 @@ class LCData(torch.utils.data.Dataset):
                 
                 # check transit duration as well (from simulation)
                 if pl_dur > 4: 
-                    print(f"duration too long for tic {tic_id}")
+                    print(f"duration {pl_dur} too long for tic {tic_id}")
                     continue
                 
-                if pl_depth < 1000:
-                    print(f"depth too low for tic {tic_id}")
-                    continue
+                # if pl_depth < 1000:
+                #     print(f"depth {pl_depth} too low for tic {tic_id}")
+                #     continue
 
                 
                 pl_data[idx] = {"flux": pl_flux, "tic_id": tic_id, "depth": pl_depth, "duration": pl_dur, "period": pl_per}
@@ -321,24 +324,26 @@ class LCData(torch.utils.data.Dataset):
             j = np.argmin(abs(pl_inj["duration"] - durs))
             # check if we have cdpp data for this star
             if durs_[j] in x:
-                pl_cdpp = float(x[durs_[j]])     
-                pl_snr = pl_inj["depth"] / pl_cdpp
+                x_cdpp = float(x[durs_[j]])     
+                pl_snr = pl_inj["depth"] / x_cdpp
             else:
                 # if not, just inject anyway (backwards compatibility)
                 print(f"WARNING: no {durs_[j]} data for tic {x['tic']}")
                 pl_snr = 100.0
 
+            # print(f"pl_snr: {pl_snr}, pl_inj['depth']: {pl_inj['depth']}, pl_inj['duration']: {pl_inj['duration']}, durs: {durs_[j]} x_cdpp: {x_cdpp}")
             # if the SNR is lower than our threshhold, skip this target entirely. 
             # min_snr = 0.5 in the argparse - ask Nora.
-            if (pl_snr < self.min_snr) or (pl_snr > 15): 
-            # if pl_snr > self.min_snr:
+            # max_snr = 15.0 in the argparse - ask Nora.
+            if (pl_snr < self.min_snr) or (pl_snr > 25):   
+            # if pl_snr < self.min_snr:
                 bad_snr = True
             else:
                 bad_snr = False
             if bad_snr:
                 num_bad += 1
                 # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
-                if num_bad > 10:
+                if num_bad > 5:
                     print("too many bad SNRs. Skipping this target.")
                     return None
         

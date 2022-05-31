@@ -26,10 +26,15 @@ class NormaliseFlux(object):
         pass
 
     def __call__(self, x):
+        # check if negative
+        if np.any(x < 0):
+            x = -x
+        # normalise
         x /= np.nanmedian(x)
         # median at 0
         x -= 1
-        x = x.astype(np.float64)  # to fix numpy => torch byte error
+        # to fix numpy => torch byte error
+        x = x.astype(np.float64)  
         return x
 
 
