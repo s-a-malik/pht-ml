@@ -166,7 +166,7 @@ class LCData(torch.utils.data.Dataset):
             lc_file = self.lc_file_list[idx]
             x = _read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
-            if not x["flux"]:
+            if x["flux"] is not None:
                 if self.store_cache:
                     self.cache[idx] = (x, None)
                 return x, None
@@ -214,7 +214,7 @@ class LCData(torch.utils.data.Dataset):
         # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
         
         # if transit additions failed, return None
-        if not x["flux"]:
+        if x["flux"] is not None:
             return x, None
 
         if self.transform:
