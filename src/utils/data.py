@@ -20,10 +20,12 @@ import pandas as pd
 
 from astropy.table import Table
 
-# import transforms
-# from utils import plot_lc
-from utils import transforms
-from utils.utils import plot_lc
+if __name__ == "main":
+    import transforms
+    from utils import plot_lc
+else:
+    from utils import transforms
+    from utils.utils import plot_lc
 
 
 TRAIN_SECTORS_DEBUG = [10]
@@ -59,7 +61,8 @@ class LCData(torch.utils.data.Dataset):
         single_transit_only=True,
         transform=None,
         preprocessing=None,
-        store_cache=True
+        store_cache=True,
+        plot_examples=False,
         ):
         """
         Params:
@@ -73,6 +76,7 @@ class LCData(torch.utils.data.Dataset):
         - transform (callable): transform to apply to the data in getitem
         - preprocessing (callable): preprocessing to apply to the data (before caching)
         - store_cache (bool): whether to store all the data in RAM in advance
+        - plot_examples (bool): whether to plot the light curves for debugging
         """
         super(LCData, self).__init__()
 
@@ -86,6 +90,7 @@ class LCData(torch.utils.data.Dataset):
         self.transform = transform
         self.store_cache = store_cache
         self.preprocessing = preprocessing
+        self.plot_examples = plot_examples
         
         self.sectors = self._get_sectors()
 
@@ -171,10 +176,14 @@ class LCData(torch.utils.data.Dataset):
                     self.cache[idx] = (x, None)
                 return x, None
 
+            if self.plot_examples:
+                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
+
             # preprocessing
             if self.preprocessing:
                 x["flux"] = self.preprocessing(x["flux"])
-
+                if self.plot_examples:
+                    plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_preprocessed_{idx}.png")
 
             # get label for this lc file (if exists), match sector 
             y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
@@ -193,8 +202,6 @@ class LCData(torch.utils.data.Dataset):
                 # add to cache 
                 self.cache[idx] = (deepcopy(x), deepcopy(y))
 
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
-
         # probabilistically add synthetic transits, only if labels are zero.
         rand_num = np.random.rand()
         if (rand_num < self.synthetic_prob) and (y == 0.0):
@@ -211,16 +218,17 @@ class LCData(torch.utils.data.Dataset):
             x["period"] = -1
             x["snr"] = -1
 
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
-        
+        if self.plot_examples:
+            plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
+
         # if transit additions failed, return None
         if x["flux"] is None:
             return x, None
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
+            if self.plot_examples:
+                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
 
         return x, y
 
@@ -384,7 +392,6 @@ class LCData(torch.utils.data.Dataset):
         x["duration"] = pl_inj["duration"]
         x["period"] = pl_inj["period"]
         x["snr"] = pl_snr
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
 
         return x
 
@@ -516,12 +523,13 @@ def get_data_loaders(args):
     multi_transit = args.multi_transit
     pin_memory = True
     debug = args.debug
+    plot_examples = args.plot_examples
 
-    # preprocessing = torchvision.transforms.Compose([
-    #     # transforms.RemoveOutliersPercent(percent_change=0.15),
-    #     # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
-    # ])
-    preprocessing = None
+    preprocessing = torchvision.transforms.Compose([
+        # transforms.RemoveOutliersPercent(percent_change=0.15),
+        transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+    ])
+    # preprocessing = None
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
@@ -562,7 +570,8 @@ def get_data_loaders(args):
         single_transit_only=not multi_transit,
         transform=training_transform,
         preprocessing=preprocessing,
-        store_cache=cache
+        store_cache=cache,
+        plot_examples=plot_examples
     )
 
     # same amount of synthetics in val set as in train set
@@ -576,7 +585,8 @@ def get_data_loaders(args):
         single_transit_only=not multi_transit,
         transform=val_transform,
         preprocessing=preprocessing,
-        store_cache=cache
+        store_cache=cache,
+        plot_examples=plot_examples
     )
 
     # no synthetics in test set
@@ -590,7 +600,8 @@ def get_data_loaders(args):
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
         preprocessing=preprocessing,
-        store_cache=cache
+        store_cache=cache,
+        plot_examples=plot_examples
     )
 
     print(f'Size of training set: {len(train_set)}')
@@ -629,17 +640,18 @@ if __name__ == "__main__":
     ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
     ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
-    ap.add_argument("--permute-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly permuted.")
+    ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
     ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
     ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
-    ap.add_argument("--min-snr", type=float, default=2.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
     ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--num-workers", type=int, default=0)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--plot-examples", action="store_true")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -653,7 +665,7 @@ if __name__ == "__main__":
                 for j in range(len(x)):
                     simulated = "sim" if x["tic_inj"][j] != -1 else "real"
                     print(simulated)
-                    plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                    # plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
                     if j == 5:
                         break
                 break
