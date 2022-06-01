@@ -113,7 +113,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             total += y_bin.shape[0]
 
             # collect the model outputs, only save first few batches
-            if ((task == "test") or (save_examples != -1)) and (len(results["targets"]) < 3000):             
+            print((save_examples != -1), (task == "test"))
+            print(((task == "test") or (save_examples != -1)), len(results["targets"], len(results["targets"]) < 3000))
+            print(((task == "test") or (save_examples != -1)) and (len(results["targets"]) < 3000))
+            if ((task == "test") or (save_examples != -1)) and (len(results["targets"]) < 3000):        
                 results["targets"] += y.tolist()
                 results["targets_bin"] += y_bin.tolist()
                 results["probs"] += prob.tolist()
@@ -123,9 +126,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 results["tic_injs"] += x["tic_inj"].tolist()
                 results["snrs"] += x["snr"].tolist()
                 results["fluxs"] += flux.tolist()
-                results["eb_prim_depths"] = x["eb_prim_depth"].tolist()
-                results["eb_sec_depths"] = x["eb_sec_depth"].tolist()
-                results["eb_periods"] = x["eb_period"].tolist()
+                results["eb_prim_depths"] += x["eb_prim_depth"].tolist()
+                results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
+                results["eb_periods"] += x["eb_period"].tolist()
 
             t.update()
 
