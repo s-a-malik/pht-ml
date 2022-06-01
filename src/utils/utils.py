@@ -63,9 +63,11 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     checkpoint_file = os.path.join(scratch_dir, "ckpt.pth.tar")
     best_file = os.path.join(scratch_dir, "best.pth.tar")  
     torch.save(checkpoint_dict, checkpoint_file)
+    wandb.save(checkpoint_file, policy="live")  # save to wandb
 
     if is_best:
         shutil.copyfile(checkpoint_file, best_file)
+        wandb.save(best_file, policy="live")    # save to wandb
 
 
 def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):

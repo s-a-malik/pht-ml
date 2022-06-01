@@ -45,6 +45,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     true_positives = 0
     false_negatives = 0
     false_positives = 0
+    total = 0
     if (task == "test") or (save_examples != -1):
         targets = []
         targets_bin = []
@@ -55,7 +56,6 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         tic_injs = []
         snrs = []
         fluxs = []
-    total = 0
     if task in ["val", "test"]:
         model.eval()
     elif task == "train":
@@ -98,7 +98,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 optimizer.step()
 
             prob = prob.detach().cpu().numpy()
+            prob = np.squeeze(prob)
             pred = pred.detach().cpu().numpy()
+            pred = np.squeeze(pred)
             y_bin = y_bin.detach().cpu().numpy()
 
             # sum up fp, tp
@@ -114,8 +116,8 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 fluxs += flux.tolist()
                 targets += y.tolist()
                 targets_bin += y_bin.tolist()
-                probs += np.squeeze(prob).tolist()
-                preds += np.squeeze(pred).tolist()
+                probs += prob.tolist()
+                preds += pred.tolist()
                 tics += x["tic"].tolist()
                 secs += x["sec"].tolist()
                 tic_injs += x["tic_inj"].tolist()
@@ -130,7 +132,6 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
     rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)
     f1 = np.divide(2 * prec * rec, (prec + rec), out=np.zeros_like(prec), where=(prec + rec)!=0)
-
 
     # save example predictions to wandb for inspection
     if save_examples != -1:
