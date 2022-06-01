@@ -138,6 +138,7 @@ dmypy.json
 # folders
 data/
 results/
+checkpoints/
 
 # out files
 *.out
