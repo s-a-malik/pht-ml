@@ -41,15 +41,19 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         - test_secs: list of sectors of the test batch
     """
     avg_loss = utils.AverageMeter()
-    targets = []
-    targets_bin = []
-    probs = []
-    preds = []
-    tics = []
-    secs = []
-    tic_injs = []
-    snrs = []
-    if save_examples != -1:
+    true_negatives = 0
+    true_positives = 0
+    false_negatives = 0
+    false_positives = 0
+    if (task == "test") or (save_examples != -1):
+        targets = []
+        targets_bin = []
+        probs = []
+        preds = []
+        tics = []
+        secs = []
+        tic_injs = []
+        snrs = []
         fluxs = []
     total = 0
     if task in ["val", "test"]:
@@ -92,33 +96,41 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            if save_examples != -1:
-                flux = flux.detach().cpu().numpy()
-                fluxs += flux.tolist()
 
             prob = prob.detach().cpu().numpy()
             pred = pred.detach().cpu().numpy()
             y_bin = y_bin.detach().cpu().numpy()
+
+            # sum up fp, tp
+            true_positives += np.sum(pred * y_bin)
+            false_positives += np.sum(pred * (1 - y_bin))
+            false_negatives += np.sum((1 - pred) * y_bin)
+            true_negatives += np.sum((1 - pred) * (1 - y_bin))
+            total += y_bin.shape[0]
+
             # collect the model outputs
-            targets += y.tolist()
-            targets_bin += y_bin.tolist()
-            probs += np.squeeze(prob).tolist()
-            preds += np.squeeze(pred).tolist()
-            tics += x["tic"].tolist()
-            secs += x["sec"].tolist()
-            tic_injs += x["tic_inj"].tolist()
-            snrs += x["snr"].tolist()
-            total += logits.size(0)
+            if (task == "test") or (save_examples != -1):
+                flux = flux.detach().cpu().numpy()
+                fluxs += flux.tolist()
+                targets += y.tolist()
+                targets_bin += y_bin.tolist()
+                probs += np.squeeze(prob).tolist()
+                preds += np.squeeze(pred).tolist()
+                tics += x["tic"].tolist()
+                secs += x["sec"].tolist()
+                tic_injs += x["tic_inj"].tolist()
+                snrs += x["snr"].tolist()
 
             t.update()
 
             # profiler.step()
-            
-    # print("targets", targets)
-    # print("pred probs", probs)
-    acc = accuracy_score(targets_bin, preds)
-    prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds, average="binary")
-    auc = roc_auc_score(targets_bin, probs)
+
+    # compute metrics manually, handling zero division. 
+    acc = np.divide((true_positives + true_negatives), total,  out=np.zeros_like((true_positives + true_negatives)), where=total!=0)
+    prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
+    rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)
+    f1 = np.divide(2 * prec * rec, (prec + rec), out=np.zeros_like(prec), where=(prec + rec)!=0)
+
 
     # save example predictions to wandb for inspection
     if save_examples != -1:
@@ -126,9 +138,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         utils.save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs, save_examples)
 
     if task == "test":
-        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total
+        auc = roc_auc_score(targets_bin, probs)
+        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, snrs, total
     else:
-        return avg_loss.avg, acc, f1, prec, rec, auc
+        return avg_loss.avg, acc, f1, prec, rec
 
 
 def training_run(args, model, optimizer, criterion, train_loader, val_loader):
@@ -145,7 +158,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
     """
 
     # get best val loss
-    best_loss, best_acc, _, _, _, _ = evaluate(
+    best_loss, best_acc, _, _, _ = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
@@ -160,7 +173,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
         # Training loop
         for epoch in range(1, args.epochs):
             epoch_start = time.time()
-            train_loss, train_acc, train_f1, train_prec, train_rec, train_auc = evaluate(
+            train_loss, train_acc, train_f1, train_prec, train_rec = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
@@ -173,7 +186,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 save_examples = epoch
             else:
                 save_examples = -1
-            val_loss, val_acc, val_f1, val_prec, val_rec, val_auc = evaluate(
+            val_loss, val_acc, val_f1, val_prec, val_rec = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
@@ -192,13 +205,11 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                     "train/f1": train_f1,
                     "train/prec": train_prec,
                     "train/rec": train_rec,
-                    "train/auc": train_auc,
                     "train/loss": train_loss,
                     "val/acc": val_acc,
                     "val/f1": val_f1,
                     "val/prec": val_prec,
                     "val/rec": val_rec,
-                    "val/auc": val_auc,
                     "val/loss": val_loss,
                 })
 
@@ -213,8 +224,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             utils.save_checkpoint(checkpoint_dict, is_best)
 
             print(f"\nTime for Epoch: {time.time() - epoch_start:.2f}s, Total Time: {time.time() - start_time:.2f}s"
-                f"\nEpoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}, train/auc: {train_auc}"
-                f"\nval/loss: {val_loss}, val/acc: {val_acc}, val/prec: {val_prec}, val/rec: {val_rec}, val/f1: {val_f1}, val/auc: {val_auc}"
+                f"\nEpoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}"
+                f"\nval/loss: {val_loss}, val/acc: {val_acc}, val/prec: {val_prec}, val/rec: {val_rec}, val/f1: {val_f1}"
             )
 
             # patience

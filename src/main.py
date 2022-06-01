@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
 
 from utils.utils import load_checkpoint
 from utils.parser import parse_args
@@ -17,7 +18,7 @@ from models.train import training_run, evaluate, init_model, init_optim
 
 
 def main(args):
-    torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
+    
     # random seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -30,7 +31,7 @@ def main(args):
     os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
     # os.environ['WANDB_MODE'] = 'offline'
     # change artifact cache directory to scratch
-    os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './') + '.cache/wandb'
+    os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './')
     job_type = "eval" if args.evaluate else "train"
     run = wandb.init(entity="s-a-malik",
                      project=args.wandb_project,
@@ -84,7 +85,7 @@ def main(args):
 
     # evaluate on test set
     with torch.no_grad():
-        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_tic_injs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
+        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_tic_injs, test_snrs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
 
     wandb.log({
         "test/loss": test_loss,
@@ -97,6 +98,7 @@ def main(args):
         "test/tics": test_tics,
         "test/secs": test_secs,
         "test/tic_injs": test_tic_injs,
+        "test/snrs": test_snrs,
         "test/pred": test_pred,
         "test/targets": test_targets
     })
