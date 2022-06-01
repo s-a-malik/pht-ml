@@ -617,7 +617,7 @@ def get_data_loaders(args):
                                                 collate_fn=collate_fn)
     val_dataloader = torch.utils.data.DataLoader(val_set,
                                                 batch_size=batch_size,
-                                                shuffle=False,
+                                                shuffle=True,               # shuffle val set as well to get different batches for prediction saving
                                                 num_workers=num_workers,
                                                 pin_memory=pin_memory,
                                                 collate_fn=collate_fn)

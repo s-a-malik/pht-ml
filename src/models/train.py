@@ -2,11 +2,7 @@
 Utility functions and classes for model training and evaluation.
 """
 
-import os
 import time
-import datetime
-
-import matplotlib.pyplot as plt
 
 from tqdm.autonotebook import trange
 
@@ -16,7 +12,7 @@ import torch
 
 import numpy as np
 
-from sklearn.metrics import precision_recall_fscore_support, accuracy_score, roc_auc_score
+from sklearn.metrics import roc_auc_score
 
 from utils import utils
 from utils.data import SHORTEST_LC
@@ -110,8 +106,8 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             true_negatives += np.sum((1 - pred) * (1 - y_bin))
             total += y_bin.shape[0]
 
-            # collect the model outputs
-            if (task == "test") or (save_examples != -1):
+            # collect the model outputs, only save first few batches
+            if ((task == "test") or (save_examples != -1)) and (len(targets) < 3000):
                 flux = flux.detach().cpu().numpy()
                 fluxs += flux.tolist()
                 targets += y.tolist()
@@ -180,7 +176,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 criterion=criterion,
                 data_loader=train_loader,
                 device=args.device,
-                task="train")
+                task="train",
+                save_examples=-1)
 
             # evaluate on val set
             if (args.example_save_freq != -1) and ((epoch) % args.example_save_freq == 0):
