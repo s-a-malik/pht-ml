@@ -142,3 +142,6 @@ checkpoints/
 
 # out files
 *.out
+
+# models
+*.tar
