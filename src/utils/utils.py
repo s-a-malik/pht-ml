@@ -179,7 +179,7 @@ def _set_title(results, idx, ax):
     if results["snrs"][idx] != -1:
         # this is an injected planet 
         ax.set_title(f'TRANSIT: tic: {results["tics"][idx]} sec: {results["secs"][idx]} tic_inj: {results["tic_injs"][idx]}, snr: {results["snrs"][idx]} prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
-    elif results["eb_period"][idx] != -1:
+    elif results["eb_periods"][idx] != -1:
         # this is an injected eclipsing binary
         ax.set_title(f'EB: tic: {results["tics"][idx]} sec: {results["secs"][idx]} tic_inj: {results["tic_injs"][idx]}, prim_depth: {results["eb_prim_depths"][idx]}, sec_depth: {results["eb_sec_depths"][idx]}, period: {results["eb_periods"][idx]}, prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
     else:
