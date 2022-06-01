@@ -64,9 +64,11 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     best_file = os.path.join(scratch_dir, "best.pth.tar")  
     torch.save(checkpoint_dict, checkpoint_file)
     wandb.save(checkpoint_file, policy="live")  # save to wandb
+    print(f"Saved checkpoint to {checkpoint_file}")
 
     if is_best:
         shutil.copyfile(checkpoint_file, best_file)
+        print(f"Saved best checkpoint to {best_file}")
         wandb.save(best_file, policy="live")    # save to wandb
 
 

@@ -68,24 +68,29 @@ def main(args):
         model_path = f"{args.log_dir}/checkpoints/{args.checkpoint}"
         os.makedirs(model_path, exist_ok=True)
         # restore from wandb
-        best_file = wandb.restore(
+        wandb_best_file = wandb.restore(
             "best.pth.tar",
             run_path=f"s-a-malik/{args.wandb_project}/{args.checkpoint}",
             root=model_path)
         # load state dict
         model, optimizer = load_checkpoint(model, optimizer, args.device,
-                                                 best_file.name)
+                                                 wandb_best_file.name)
     
     # train
     if not args.evaluate:
         model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
-
+    else:
+        best_file = wandb_best_file.name
+    
     # load model
     model, optimizer = load_checkpoint(model, optimizer, args.device, best_file)
 
     # evaluate on test set
     with torch.no_grad():
         test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, results = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
+    
+    print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc:.4f}, Test F1: {test_f1:.4f}, Test precision: {test_prec:.4f}, Test recall: {test_rec:.4f}, Test AUC: {test_auc:.4f}")
+    
     results = {"test/" + k: v for k, v in results.items()}
     results.update({"test/loss": test_loss,
         "test/acc": test_acc,
