@@ -696,7 +696,7 @@ if __name__ == "__main__":
     ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--num-workers", type=int, default=0)
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--plot-examples", action="store_true")
