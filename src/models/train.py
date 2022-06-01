@@ -3,6 +3,7 @@ Utility functions and classes for model training and evaluation.
 """
 
 import time
+from collections import defaultdict
 
 from tqdm.autonotebook import trange
 
@@ -28,13 +29,25 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     - task (str): train, val, test
     - save_examples (int): whether to save example predictions (-1 for no, epoch number for yes)
     Returns:
-    - loss: loss on batch
-    - acc: accuracy on batch
-    - in addition, if test:
-        - preds: list of class predictions
-        - test_targets: list of true labels
-        - test_tics: list of tic_ids of the test batch
-        - test_secs: list of sectors of the test batch
+    - loss: average loss on data_loader
+    - acc: accuracy on data_loader
+    - f1: f1 score on data_loader
+    - prec: precision on data_loader
+    - rec: recall on data_loader
+    in addition, if test:
+    - auc (float): roc_auc_score on data_loader
+    - results (dict):
+        - fluxs (list): predicted fluxes
+        - probs (list): predicted probabilities
+        - targets (list): true fluxes
+        - targets_bin (list): true binary targets
+        - tics (list): tic ids
+        - secs (list): secs
+        - tic_injs (list): tic injections
+        - snrs (list): snrs
+        - eb_prim_depths (list): primary eb depth
+        - eb_sec_depths (list): secondary eb depth
+        - eb_periods (list): eb periods
     """
     avg_loss = utils.AverageMeter()
     true_negatives = 0
@@ -43,15 +56,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     false_positives = 0
     total = 0
     if (task == "test") or (save_examples != -1):
-        targets = []
-        targets_bin = []
-        probs = []
-        preds = []
-        tics = []
-        secs = []
-        tic_injs = []
-        snrs = []
-        fluxs = []
+        results = defaultdict(list)
     if task in ["val", "test"]:
         model.eval()
     elif task == "train":
@@ -93,6 +98,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 loss.backward()
                 optimizer.step()
 
+            flux = flux.detach().cpu().numpy()
             prob = prob.detach().cpu().numpy()
             prob = np.squeeze(prob)
             pred = pred.detach().cpu().numpy()
@@ -107,23 +113,25 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             total += y_bin.shape[0]
 
             # collect the model outputs, only save first few batches
-            if ((task == "test") or (save_examples != -1)) and (len(targets) < 3000):
-                flux = flux.detach().cpu().numpy()
-                fluxs += flux.tolist()
-                targets += y.tolist()
-                targets_bin += y_bin.tolist()
-                probs += prob.tolist()
-                preds += pred.tolist()
-                tics += x["tic"].tolist()
-                secs += x["sec"].tolist()
-                tic_injs += x["tic_inj"].tolist()
-                snrs += x["snr"].tolist()
+            if ((task == "test") or (save_examples != -1)) and (len(results["targets"]) < 3000):             
+                results["targets"] += y.tolist()
+                results["targets_bin"] += y_bin.tolist()
+                results["probs"] += prob.tolist()
+                results["preds"] += pred.tolist()
+                results["tics"] += x["tic"].tolist()
+                results["secs"] += x["sec"].tolist()
+                results["tic_injs"] += x["tic_inj"].tolist()
+                results["snrs"] += x["snr"].tolist()
+                results["fluxs"] += flux.tolist()
+                results["eb_prim_depths"] = x["eb_prim_depth"].tolist()
+                results["eb_sec_depths"] = x["eb_sec_depth"].tolist()
+                results["eb_periods"] = x["eb_period"].tolist()
 
             t.update()
 
             # profiler.step()
 
-    # compute metrics manually, handling zero division. 
+    # compute metrics manually, handling zero division. TODO this could be done in a simpler way
     acc = np.divide((true_positives + true_negatives), total,  out=np.zeros_like((true_positives + true_negatives)), where=total!=0)
     prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
     rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)
@@ -132,11 +140,11 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     # save example predictions to wandb for inspection
     if save_examples != -1:
         print("saving example predictions")
-        utils.save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs, save_examples)
+        utils.save_examples(results, save_examples)
 
     if task == "test":
-        auc = roc_auc_score(targets_bin, probs)
-        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, snrs, total
+        auc = roc_auc_score(results["targets_bin"], results["probs"])
+        return avg_loss.avg, acc, f1, prec, rec, auc, results
     else:
         return avg_loss.avg, acc, f1, prec, rec
 

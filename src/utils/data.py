@@ -217,6 +217,9 @@ class LCData(torch.utils.data.Dataset):
             x["duration"] = -1
             x["period"] = -1
             x["snr"] = -1
+            x["eb_prim_depth"] = -1
+            x["eb_sec_depth"] = -1
+            x["eb_period"] = -1
 
         # if transit additions failed, return None
         if x["flux"] is None:
@@ -256,15 +259,59 @@ class LCData(torch.utils.data.Dataset):
     def _get_eb_data(self):
         """Loads the eclipsing binary data
         """
-        # TODO add EB synthetics
-        return None
+        # simulated transit info
+        eb_table = Table.read(f"{self.data_root_path}/eb_csvs/ete6_eb_data.txt", format='ascii',comment='#')
+        eb_files = glob(f"{self.data_root_path}/eb_csvs/EBs_*binfac-{self.bin_factor}.csv")
+        print(f"found {len(eb_files)} eb flux files for binfac {self.bin_factor}")
+        
+        # load planetary transits into RAM
+        eb_data = {}   # dict of dicts with metadata
+        print("loading eb metadata...")
+        idx = 0
+        with trange(len(eb_files)) as t:
+            for eb_file in eb_files:
+                # extract tic id
+                tic_id = int(eb_file.split("/")[-1].split("_")[1].split(".")[0])
+                # check if we should include this planet
+                if not self._is_planet_in_data_split(tic_id):
+                    continue
+
+                # look up in table
+                eb_row = eb_table[eb_table['col1'] == tic_id]
+                eb_prim_depth = eb_row['col8'][0]
+                eb_sec_depth = eb_row['col9'][0]
+                eb_per = eb_row['col3'][0]     # transit period                  
+                eb_flux = np.genfromtxt(str(eb_file), skip_header=1)
+
+                if len(eb_flux) == 0:
+                    print(f"WARNING: no data for tic {tic_id}", eb_row)
+                    print(f"skipping...")
+                    continue
+                
+                eb_data[idx] = {"flux": eb_flux, "tic_id": tic_id, "eb_prim_depth": eb_prim_depth, "eb_sec_depth": eb_sec_depth, "eb_period": eb_per}
+                idx += 1
+                t.update()
+
+        print(f"Loaded {len(eb_data)} simulated transits for {self.data_split} data split")
+
+        return eb_data
 
 
     def _add_synthetic_eclipse_binary(self, x):
         """Adds synthetic eclipsing binary data.
         """
-        # TODO add EB synthetics
-        return None
+        eb_inj = self.eb_data[np.random.randint(len(self.eb_data))]    
+        x["flux"] = self._inject_transit(x["flux"], eb_inj["flux"], single_transit=False)
+        x["tic_inj"] = eb_inj["tic_id"]
+        x["eb_prim_depth"] = eb_inj["eb_prim_depth"]
+        x["eb_sec_depth"] = eb_inj["eb_sec_depth"]
+        x["eb_period"] = eb_inj["eb_period"]
+        x["depth"] = -1
+        x["duration"] = -1
+        x["period"] = -1
+        x["snr"] = -1
+
+        return x
 
 
     def _get_pl_data(self):
@@ -370,7 +417,6 @@ class LCData(torch.utils.data.Dataset):
                 print(f"WARNING: no {durs_[j]} data for tic {x['tic']}")
                 pl_snr = 100.0
 
-            # print(f"pl_snr: {pl_snr}, pl_inj['depth']: {pl_inj['depth']}, pl_inj['duration']: {pl_inj['duration']}, durs: {durs_[j]} x_cdpp: {x_cdpp}")
             # if the SNR is lower than our threshhold, skip this target entirely. 
             # min_snr = 0.5 in the argparse - ask Nora.
             # max_snr = 15.0 in the argparse - ask Nora.
@@ -387,13 +433,15 @@ class LCData(torch.utils.data.Dataset):
                     x["flux"] = None
                     return x
         
-        x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
+        x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"], single_transit=self.single_transit_only)
         x["tic_inj"] = pl_inj["tic_id"]
         x["depth"] = pl_inj["depth"]
         x["duration"] = pl_inj["duration"]
         x["period"] = pl_inj["period"]
         x["snr"] = pl_snr
-
+        x["eb_prim_depth"] = -1
+        x["eb_sec_depth"] = -1
+        x["eb_period"] = -1
         return x
 
     def _extract_single_transit(self, x):
@@ -417,8 +465,8 @@ class LCData(torch.utils.data.Dataset):
         return transit
 
 
-    def _inject_transit(self, base_flux, injected_flux):
-        """Inject a transit into a base light curve. 
+    def _inject_transit(self, base_flux, injected_flux, single_transit=False):
+        """Inject a transit into a base light curve. keep nans in the same place.
         N.B. Need to ensure both fluxes correspond to the same cadence.
         Params:
         - base_flux (np.array): base LC to inject into
@@ -428,7 +476,7 @@ class LCData(torch.utils.data.Dataset):
             injected_flux = injected_flux[:len(base_flux)-1]
         
         # ensure the injected flux is not in a missing data region. Only if single transit as the full curve may have a lot of missing data
-        if self.single_transit_only:
+        if single_transit:
             missing_data = True
             while missing_data:
                 # add injected flux section to random part of base flux
@@ -445,7 +493,6 @@ class LCData(torch.utils.data.Dataset):
         base_flux[start_idx:start_idx+len(injected_flux)] = base_flux[start_idx:start_idx+len(injected_flux)] * injected_flux
 
         return base_flux
-
 
 
 ##### UTILS
@@ -664,7 +711,12 @@ if __name__ == "__main__":
                 print(i, x, y)
                 # print(x["flux"].shape, y.shape)
                 for j in range(len(x)):
-                    simulated = "sim" if x["tic_inj"][j] != -1 else "real"
+                    if x["snr"][j] != -1:
+                        simulated = "planet"
+                    elif x["eb_period"][j] != -1:
+                        simulated = "eb" 
+                    else:
+                        simulated = "real"
                     print(simulated)
                     # plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
                     if j == 5:

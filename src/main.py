@@ -85,23 +85,15 @@ def main(args):
 
     # evaluate on test set
     with torch.no_grad():
-        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_pred, test_targets, test_tics, test_secs, test_tic_injs, test_snrs, test_total = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
-
-    wandb.log({
-        "test/loss": test_loss,
+        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, results = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
+    results = {"test/" + k: v for k, v in results.items()}
+    results.update({"test/loss": test_loss,
         "test/acc": test_acc,
         "test/f1": test_f1,
         "test/prec": test_prec,
         "test/rec": test_rec,
-        "test/auc": test_auc,
-        "test/total": test_total,
-        "test/tics": test_tics,
-        "test/secs": test_secs,
-        "test/tic_injs": test_tic_injs,
-        "test/snrs": test_snrs,
-        "test/pred": test_pred,
-        "test/targets": test_targets
-    })
+        "test/auc": test_auc})
+    wandb.log(results)
 
     # save to a results file
     # df = pd.DataFrame({"pred": test_pred, "targets": test_targets, "tics": test_tics, "secs": test_secs, "tic_injs": test_tic_injs})

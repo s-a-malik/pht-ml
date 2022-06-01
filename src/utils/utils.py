@@ -117,27 +117,31 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     return fig, ax
 
 
-def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs, step):
+def save_examples(results, step):
     """Plot example predictions for inspection and save to wandb
     Params:
-    - fluxs (list): predicted fluxes
-    - probs (list): predicted probabilities
-    - targets (list): true fluxes
-    - targets_bin (list): true binary targets
-    - tics (list): tic ids
-    - secs (list): secs
-    - tic_injs (list): tic injections
-    - snrs (list): snrs
+    - results (dict):
+        - fluxs (list): predicted fluxes
+        - probs (list): predicted probabilities
+        - targets (list): true fluxes
+        - targets_bin (list): true binary targets
+        - tics (list): tic ids
+        - secs (list): secs
+        - tic_injs (list): tic injections
+        - snrs (list): snrs
+        - eb_prim_depths (list): primary eb depth
+        - eb_sec_depths (list): secondary eb depth
+        - eb_periods (list): eb periods
     - step (int): step number (epoch)
     """
-    probs = np.array(probs)
+    probs = np.array(results["probs"])
     # most confident preds
     conf_preds_sorted = np.argsort(probs)[::-1]
     conf_preds_sorted = conf_preds_sorted[:5]
     for i, idx in enumerate(conf_preds_sorted):
         plt.clf()
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)
         wandb.log({f"pos_preds_{i}": wandb.Image(fig)}, step=step)
 
     # confident negative preds
@@ -145,26 +149,39 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
     neg_preds_sorted = neg_preds_sorted[:5]
     for i, idx in enumerate(neg_preds_sorted):
         plt.clf()
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)        
         wandb.log({f"neg_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most uncertain preds (closest to 0.5)
     unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
     unc_preds_sorted = unc_preds_sorted[:5]
     for i, idx in enumerate(unc_preds_sorted):
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)
         wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most lossy preds (highest difference between prob and target)
-    loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
+    loss_preds_sorted = np.argsort(np.abs(probs - results["targets"]))[::-1]
     loss_preds_sorted = loss_preds_sorted[:5]
     for i, idx in enumerate(loss_preds_sorted):
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+        plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)   
         wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
-    wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),
-                "pr": wandb.plot.pr_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1))},
+    wandb.log({"roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
+                "pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))},
                 step=step)
+
+def _set_title(results, idx, ax):
+    """Set the title of the plot 
+    """
+    if results["snrs"][idx] != -1:
+        # this is an injected planet 
+        ax.set_title(f'TRANSIT: tic: {results["tics"][idx]} sec: {results["secs"][idx]} tic_inj: {results["tic_injs"][idx]}, snr: {results["snrs"][idx]} prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
+    elif results["eb_period"][idx] != -1:
+        # this is an injected eclipsing binary
+        ax.set_title(f'EB: tic: {results["tics"][idx]} sec: {results["secs"][idx]} tic_inj: {results["tic_injs"][idx]}, prim_depth: {results["eb_prim_depths"][idx]}, sec_depth: {results["eb_sec_depths"][idx]}, period: {results["eb_periods"][idx]}, prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
+    else:
+        # this is neither
+        ax.set_title(f'tic: {results["tics"][idx]} sec: {results["secs"][idx]} prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
