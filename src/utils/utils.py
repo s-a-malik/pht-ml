@@ -159,6 +159,7 @@ def save_examples(results, step):
     unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
     unc_preds_sorted = unc_preds_sorted[:5]
     for i, idx in enumerate(unc_preds_sorted):
+        plt.clf()
         fig, ax = plot_lc(results["fluxs"][idx])
         _set_title(results, idx, ax)
         wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=step)
@@ -167,13 +168,15 @@ def save_examples(results, step):
     loss_preds_sorted = np.argsort(np.abs(probs - results["targets"]))[::-1]
     loss_preds_sorted = loss_preds_sorted[:5]
     for i, idx in enumerate(loss_preds_sorted):
-        plot_lc(results["fluxs"][idx])
+        plt.clf()
+        fig, ax = plot_lc(results["fluxs"][idx])
         _set_title(results, idx, ax)   
         wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
     wandb.log({"roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
                 "pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))},
                 step=step)
+
 
 def _set_title(results, idx, ax):
     """Set the title of the plot 

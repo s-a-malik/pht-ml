@@ -8,8 +8,8 @@
 # --num-workers 4 --bin-factor 7 --debug --no-cache --bin-factor 3
 # --num-workers 4 --bin-factor 7 --debug --epochs 2 --eb-prob 0.4 --synthetic-prob 0.2
 # --num-workers 0 --bin-factor 7 --debug
-# --experiment-name eb-test --num-workers 4 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.3 --eb-prob 0.3
+# --experiment-name eb-test --num-workers 4 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.3 --eb-prob 0.3 --epochs 3000
 # --num-workers 4 --bin-factor 7 --min-snr 1 --noise-std 0.005 --synthetic-prob 0.7 --debug
-# --experiment-name binfac-3 --num-workers 4 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.6
+--epochs 1000 --checkpoint 2odpf554 --experiment-name binfac-3 --num-workers 4 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.6
 # --multi-transit --model dense
---epochs 2 --checkpoint 2odpf554 --debug --no-cache --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.6 --num-workers 4
+# --epochs 1000 --checkpoint 2odpf554 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.6 --num-workers 4
