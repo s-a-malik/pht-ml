@@ -324,7 +324,6 @@ class LCData(torch.utils.data.Dataset):
         
         # load planetary transits into RAM
         pl_data = {}   # dict of dicts with metadata
-        # TODO better to use a dict to speed up lookup or df to save memory?
         print("loading planet metadata...")
         idx = 0
         with trange(len(pl_files)) as t:
@@ -369,9 +368,7 @@ class LCData(torch.utils.data.Dataset):
                 idx += 1
                 t.update()
 
-    
         print(f"Loaded {len(pl_data)} simulated transits for {self.data_split} data split")
-        # print("examples", pl_data[-5:])
 
         return pl_data
 
@@ -481,9 +478,6 @@ class LCData(torch.utils.data.Dataset):
             while missing_data:
                 # add injected flux section to random part of base flux
                 start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
-                # check if there is missing data in the injected flux
-                # print("checking for missing data")
-
                 # if there is 20% missing data in the transit, try again
                 # TODO maybe adjust this parameter?      
                 missing_data = np.count_nonzero(np.isnan(base_flux[start_idx:start_idx+len(injected_flux)])) / len(injected_flux) > 0.2
@@ -494,10 +488,8 @@ class LCData(torch.utils.data.Dataset):
 
         return base_flux
 
-
 ##### UTILS
 
-# TODO collate fn to return a good batch of simulated and real data (do this from the data loader
 def collate_fn(batch):
     """Collate function for filtering out corrupted data in the dataset
     Assumes that missing data are NoneType
