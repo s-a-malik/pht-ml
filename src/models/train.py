@@ -45,6 +45,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         - secs (list): secs
         - tic_injs (list): tic injections
         - snrs (list): snrs
+        - durations (list): durations
+        - periods (list): periods
+        - depths (list): depths
         - eb_prim_depths (list): primary eb depth
         - eb_sec_depths (list): secondary eb depth
         - eb_periods (list): eb periods
@@ -115,7 +118,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             # collect the model outputs
             if ((task == "test") or (save_examples != -1)):  
                 # only save first few batches if just plotting
-                if (save_examples != -1) and (len(results["targets"]) > 3000):
+                if (save_examples != -1) and (len(results["targets"]) > 5000):
                     pass
                 # else collect all test results
                 else:      
@@ -127,6 +130,9 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                     results["secs"] += x["sec"].tolist()
                     results["tic_injs"] += x["tic_inj"].tolist()
                     results["snrs"] += x["snr"].tolist()
+                    results["durations"] += x["duration"].tolist()
+                    results["periods"] += x["period"].tolist()
+                    results["depths"] += x["depth"].tolist()
                     results["eb_prim_depths"] += x["eb_prim_depth"].tolist()
                     results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
                     results["eb_periods"] += x["eb_period"].tolist()
@@ -287,6 +293,7 @@ def init_model(args):
             )
     else:
         raise NameError(f"Unknown model {args.model}")
+    
     model.to(args.device)
 
     return model

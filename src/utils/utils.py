@@ -10,9 +10,12 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import AutoMinorLocator
 
+import pandas as pd
 import numpy as np
 
 import torch
+
+from utils import metrics
 
 
 class AverageMeter(object):
@@ -131,12 +134,17 @@ def save_examples(results, step):
         - secs (list): secs
         - tic_injs (list): tic injections
         - snrs (list): snrs
+        - durations (list): durations
+        - periods (list): periods
+        - depths (list): depths
         - eb_prim_depths (list): primary eb depth
         - eb_sec_depths (list): secondary eb depth
         - eb_periods (list): eb periods
     - step (int): step number (epoch)
     """
     probs = np.array(results["probs"])
+    targets = np.array(results["targets"])
+
     # most confident preds
     conf_preds_sorted = np.argsort(probs)[::-1]
     conf_preds_sorted = conf_preds_sorted[:5]
@@ -165,7 +173,7 @@ def save_examples(results, step):
         wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most lossy preds (highest difference between prob and target)
-    loss_preds_sorted = np.argsort(np.abs(probs - results["targets"]))[::-1]
+    loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
     loss_preds_sorted = loss_preds_sorted[:5]
     for i, idx in enumerate(loss_preds_sorted):
         plt.clf()
@@ -173,9 +181,56 @@ def save_examples(results, step):
         _set_title(results, idx, ax)   
         wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
-    wandb.log({"roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
+    # losses
+    bce_losses = metrics.bce_loss_numpy(probs, targets)
+    # log results to wandb to be plotted in the dashboard (without flux)
+    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"]})
+
+    wandb.log({"val_results": wandb.Table(dataframe=df),
+                "roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
                 "pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))},
                 step=step)
+
+
+# def plot_scatter_with_hist(x, y, x_label, y_label):
+#     """Plot scatter with marginal distributions
+#     """
+#     plt.clf()
+#     # definitions for the axes
+#     left, width = 0.1, 0.65
+#     bottom, height = 0.1, 0.65
+#     spacing = 0.005
+
+#     rect_scatter = [left, bottom, width, height]
+#     rect_histx = [left, bottom + height + spacing, width, 0.2]
+#     rect_histy = [left + width + spacing, bottom, 0.2, height]
+
+#     # start with a square Figure
+#     fig = plt.figure(figsize=(8, 8))
+
+#     ax = fig.add_axes(rect_scatter)
+#     ax_histx = fig.add_axes(rect_histx, sharex=ax)
+#     ax_histy = fig.add_axes(rect_histy, sharey=ax)
+
+#     # no labels
+#     ax_histx.tick_params(axis="x", labelbottom=False)
+#     ax_histy.tick_params(axis="y", labelleft=False)
+
+#     # the scatter plot:
+#     ax.scatter(x, y)
+#     ax.set_xlabel(x_label)
+#     ax.set_ylabel(y_label)
+
+#     # now determine nice limits by hand:
+#     binwidth = 0.25
+#     xymax = max(np.max(np.abs(x)), np.max(np.abs(y)))
+#     lim = (int(xymax/binwidth) + 1) * binwidth
+
+#     bins = np.arange(-lim, lim + binwidth, binwidth)
+#     ax_histx.hist(x, bins=bins)
+#     ax_histy.hist(y, bins=bins, orientation='horizontal')
+
+#     return fig, ax, ax_histx, ax_histy
 
 
 def _set_title(results, idx, ax):
