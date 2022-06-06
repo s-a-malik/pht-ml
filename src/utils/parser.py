@@ -109,11 +109,6 @@ def parse_args():
                         type=int,
                         default=1,
                         help="Number of convolutional layers.")
-    # parser.add_argument("--max-lc-length",
-    #                     type=int,
-    #                     default=2600,
-    #                     help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
-
 
     # training config
     parser.add_argument("--optimizer",

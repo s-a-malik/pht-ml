@@ -294,6 +294,8 @@ def init_model(args):
     else:
         raise NameError(f"Unknown model {args.model}")
     
+    # for tracking gradients etc.
+    wandb.watch(model, log="all")  
     model.to(args.device)
 
     return model
