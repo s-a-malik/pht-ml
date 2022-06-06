@@ -51,6 +51,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         - eb_prim_depths (list): primary eb depth
         - eb_sec_depths (list): secondary eb depth
         - eb_periods (list): eb periods
+        - classes (list): classes (eb, synth_planet, real)
     """
     avg_loss = utils.AverageMeter()
     true_negatives = 0
@@ -136,6 +137,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                     results["eb_prim_depths"] += x["eb_prim_depth"].tolist()
                     results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
                     results["eb_periods"] += x["eb_period"].tolist()
+                    results["classes"] += x["class"]
                     # save flux only if plotting
                     if save_examples != -1:
                         results["fluxs"] += flux.tolist()

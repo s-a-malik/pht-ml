@@ -220,6 +220,7 @@ class LCData(torch.utils.data.Dataset):
             x["eb_prim_depth"] = -1
             x["eb_sec_depth"] = -1
             x["eb_period"] = -1
+            x["class"] = "real"
 
         # if transit additions failed, return None
         if x["flux"] is None:
@@ -310,6 +311,7 @@ class LCData(torch.utils.data.Dataset):
         x["duration"] = -1
         x["period"] = -1
         x["snr"] = -1
+        x["class"] = "eb"
 
         return x
 
@@ -439,6 +441,8 @@ class LCData(torch.utils.data.Dataset):
         x["eb_prim_depth"] = -1
         x["eb_sec_depth"] = -1
         x["eb_period"] = -1
+        x["class"] = "synth_planet"
+    
         return x
 
     def _extract_single_transit(self, x):
