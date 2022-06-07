@@ -11,13 +11,12 @@ class ConvBlock(nn.Module):
     """A block containing a convolution and all the fixings that go with it.
     Adapted from ramjet https://github.com/golmschenk/ramjet/blob/master/ramjet/models/components/light_curve_network_block.py
     N.B. removed spatial dropout.
-    TODO port from keras
     """
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, pooling_size: int, dropout: float = 0.1,
-                 batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, stride: int = 1, padding: int = 0, 
+                 pooling_size: int, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
         super(ConvBlock, self).__init__()
         # self.convolution = nn.Conv1D(filters, kernel_size=kernel_size)
-        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
+        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding, stride=stride)
         self.act = get_activation(non_linearity)
         if dropout > 0:
             self.dropout = nn.Dropout(p=dropout)
@@ -29,8 +28,6 @@ class ConvBlock(nn.Module):
             self.max_pooling = None
         if batch_normalization:
             self.batch_normalization = nn.BatchNorm1d(out_channels)
-            # self.batch_normalization_input_reshape = Reshape([-1])
-            # self.batch_normalization_output_reshape = Reshape([-1, filters])
         else:
             self.batch_normalization = None
 

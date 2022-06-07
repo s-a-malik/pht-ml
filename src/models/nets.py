@@ -21,8 +21,8 @@ class RamjetBin3(nn.Module):
         self.output_dim = output_dim
         self.dropout = dropout
 
-        self.block0 = ConvBlock(in_channels=1, out_channels=8, kernel_size=3, pooling_size=2, batch_normalization=False,
-                                             dropout=0)
+        self.block0 = ConvBlock(in_channels=1, out_channels=8, kernel_size=3, pooling_size=2, padding=0, stride=1,
+                                batch_normalization=False, dropout=0)
         self.block1 = ConvBlock(in_channels=8, out_channels=8, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block2 = ConvBlock(in_channels=8, out_channels=16, kernel_size=3, pooling_size=2, dropout=self.dropout)
         self.block3 = ConvBlock(in_channels=16, out_channels=32, kernel_size=3, pooling_size=2, dropout=self.dropout)

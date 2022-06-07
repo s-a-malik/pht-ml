@@ -6,7 +6,7 @@
 # --multi-transit --num-workers 4
 # --model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4
 # --num-workers 4 --bin-factor 7 --debug --no-cache
---num-workers 4 --bin-factor 7 --synthetic-prob 0.5 --min-snr 1 --lr 1e-3 --optimizer adam --debug --no-cache --epochs 500
+--num-workers 4 --bin-factor 3 --synthetic-prob 0.7 --min-snr 1 --lr 1e-3 --optimizer adam --debug --epochs 500
 # --num-workers 0 --bin-factor 7 --debug
 # --experiment-name eb-test --num-workers 4 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.3 --eb-prob 0.3 --epochs 3000
 # --num-workers 4 --bin-factor 7 --min-snr 1 --noise-std 0.005 --synthetic-prob 0.7 --debug
