@@ -2,11 +2,8 @@
 Utility functions and classes for model training and evaluation.
 """
 
-import os
 import time
-import datetime
-
-import matplotlib.pyplot as plt
+from collections import defaultdict
 
 from tqdm.autonotebook import trange
 
@@ -16,7 +13,7 @@ import torch
 
 import numpy as np
 
-from sklearn.metrics import precision_recall_fscore_support, accuracy_score, roc_auc_score
+from sklearn.metrics import roc_auc_score
 
 from utils import utils
 from utils.data import SHORTEST_LC
@@ -32,26 +29,38 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
     - task (str): train, val, test
     - save_examples (int): whether to save example predictions (-1 for no, epoch number for yes)
     Returns:
-    - loss: loss on batch
-    - acc: accuracy on batch
-    - in addition, if test:
-        - preds: list of class predictions
-        - test_targets: list of true labels
-        - test_tics: list of tic_ids of the test batch
-        - test_secs: list of sectors of the test batch
+    - loss: average loss on data_loader
+    - acc: accuracy on data_loader
+    - f1: f1 score on data_loader
+    - prec: precision on data_loader
+    - rec: recall on data_loader
+    in addition, if test:
+    - auc (float): roc_auc_score on data_loader
+    - results (dict):
+        - fluxs (list): predicted fluxes
+        - probs (list): predicted probabilities
+        - targets (list): true fluxes
+        - targets_bin (list): true binary targets
+        - tics (list): tic ids
+        - secs (list): secs
+        - tic_injs (list): tic injections
+        - snrs (list): snrs
+        - durations (list): durations
+        - periods (list): periods
+        - depths (list): depths
+        - eb_prim_depths (list): primary eb depth
+        - eb_sec_depths (list): secondary eb depth
+        - eb_periods (list): eb periods
+        - classes (list): classes (eb, synth_planet, real)
     """
     avg_loss = utils.AverageMeter()
-    targets = []
-    targets_bin = []
-    probs = []
-    preds = []
-    tics = []
-    secs = []
-    tic_injs = []
-    snrs = []
-    if save_examples != -1:
-        fluxs = []
+    true_negatives = 0
+    true_positives = 0
+    false_negatives = 0
+    false_positives = 0
     total = 0
+    if (task == "test") or (save_examples != -1):
+        results = defaultdict(list)
     if task in ["val", "test"]:
         model.eval()
     elif task == "train":
@@ -92,43 +101,67 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            if save_examples != -1:
-                flux = flux.detach().cpu().numpy()
-                fluxs += flux.tolist()
 
+            flux = flux.detach().cpu().numpy()
             prob = prob.detach().cpu().numpy()
+            prob = np.squeeze(prob)
             pred = pred.detach().cpu().numpy()
+            pred = np.squeeze(pred)
             y_bin = y_bin.detach().cpu().numpy()
+
+            # sum up fp, tp
+            true_positives += np.sum(pred * y_bin)
+            false_positives += np.sum(pred * (1 - y_bin))
+            false_negatives += np.sum((1 - pred) * y_bin)
+            true_negatives += np.sum((1 - pred) * (1 - y_bin))
+            total += y_bin.shape[0]
+
             # collect the model outputs
-            targets += y.tolist()
-            targets_bin += y_bin.tolist()
-            probs += np.squeeze(prob).tolist()
-            preds += np.squeeze(pred).tolist()
-            tics += x["tic"].tolist()
-            secs += x["sec"].tolist()
-            tic_injs += x["tic_inj"].tolist()
-            snrs += x["snr"].tolist()
-            total += logits.size(0)
+            if ((task == "test") or (save_examples != -1)):  
+                # only save first few batches if just plotting
+                if (save_examples != -1) and (len(results["targets"]) > 5000):
+                    pass
+                # else collect all test results
+                else:      
+                    results["targets"] += y.tolist()
+                    results["targets_bin"] += y_bin.tolist()
+                    results["probs"] += prob.tolist()
+                    results["preds"] += pred.tolist()
+                    results["tics"] += x["tic"].tolist()
+                    results["secs"] += x["sec"].tolist()
+                    results["tic_injs"] += x["tic_inj"].tolist()
+                    results["snrs"] += x["snr"].tolist()
+                    results["durations"] += x["duration"].tolist()
+                    results["periods"] += x["period"].tolist()
+                    results["depths"] += x["depth"].tolist()
+                    results["eb_prim_depths"] += x["eb_prim_depth"].tolist()
+                    results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
+                    results["eb_periods"] += x["eb_period"].tolist()
+                    results["classes"] += x["class"]
+                    # save flux only if plotting
+                    if save_examples != -1:
+                        results["fluxs"] += flux.tolist()
 
             t.update()
 
             # profiler.step()
-            
-    # print("targets", targets)
-    # print("pred probs", probs)
-    acc = accuracy_score(targets_bin, preds)
-    prec, rec, f1, _ = precision_recall_fscore_support(targets_bin, preds, average="binary")
-    auc = roc_auc_score(targets_bin, probs)
+
+    # compute metrics manually, handling zero division. TODO this could be done in a simpler way
+    acc = np.divide((true_positives + true_negatives), total,  out=np.zeros_like((true_positives + true_negatives)), where=total!=0)
+    prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
+    rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)
+    f1 = np.divide(2 * prec * rec, (prec + rec), out=np.zeros_like(prec), where=(prec + rec)!=0)
 
     # save example predictions to wandb for inspection
     if save_examples != -1:
         print("saving example predictions")
-        utils.save_examples(fluxs, preds, targets, targets_bin, tics, secs, tic_injs, snrs, save_examples)
+        utils.save_examples(results, save_examples)
 
     if task == "test":
-        return avg_loss.avg, acc, f1, prec, rec, auc, probs, targets, tics, secs, tic_injs, total
+        auc = roc_auc_score(results["targets_bin"], results["probs"])
+        return avg_loss.avg, acc, f1, prec, rec, auc, results
     else:
-        return avg_loss.avg, acc, f1, prec, rec, auc
+        return avg_loss.avg, acc, f1, prec, rec
 
 
 def training_run(args, model, optimizer, criterion, train_loader, val_loader):
@@ -145,7 +178,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
     """
 
     # get best val loss
-    best_loss, best_acc, _, _, _, _ = evaluate(
+    best_loss, best_acc, _, _, _ = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
@@ -154,26 +187,36 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 task="val",
                 save_examples=-1 if args.example_save_freq == -1 else 0)
     print(f"\ninitial loss: {best_loss}, acc: {best_acc}")
+    # save initial checkpoint
+    checkpoint_dict = {
+        "epoch": 0,
+        "state_dict": model.state_dict(),
+        "best_loss": best_loss,
+        "optimizer": optimizer.state_dict(),
+        "args": vars(args)
+    }
+    utils.save_checkpoint(checkpoint_dict, is_best=True)
     best_epoch = 0
     start_time = time.time()
     try:
         # Training loop
         for epoch in range(1, args.epochs):
             epoch_start = time.time()
-            train_loss, train_acc, train_f1, train_prec, train_rec, train_auc = evaluate(
+            train_loss, train_acc, train_f1, train_prec, train_rec = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
                 data_loader=train_loader,
                 device=args.device,
-                task="train")
+                task="train",
+                save_examples=-1)
 
             # evaluate on val set
             if (args.example_save_freq != -1) and ((epoch) % args.example_save_freq == 0):
                 save_examples = epoch
             else:
                 save_examples = -1
-            val_loss, val_acc, val_f1, val_prec, val_rec, val_auc = evaluate(
+            val_loss, val_acc, val_f1, val_prec, val_rec = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
@@ -192,13 +235,11 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                     "train/f1": train_f1,
                     "train/prec": train_prec,
                     "train/rec": train_rec,
-                    "train/auc": train_auc,
                     "train/loss": train_loss,
                     "val/acc": val_acc,
                     "val/f1": val_f1,
                     "val/prec": val_prec,
                     "val/rec": val_rec,
-                    "val/auc": val_auc,
                     "val/loss": val_loss,
                 })
 
@@ -213,8 +254,8 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
             utils.save_checkpoint(checkpoint_dict, is_best)
 
             print(f"\nTime for Epoch: {time.time() - epoch_start:.2f}s, Total Time: {time.time() - start_time:.2f}s"
-                f"\nEpoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}, train/auc: {train_auc}"
-                f"\nval/loss: {val_loss}, val/acc: {val_acc}, val/prec: {val_prec}, val/rec: {val_rec}, val/f1: {val_f1}, val/auc: {val_auc}"
+                f"\nEpoch {epoch+1}/{args.epochs}: \ntrain/loss: {train_loss}, train/acc: {train_acc}, train/prec: {train_prec} train/rec: {train_rec}, train/f1: {train_f1}"
+                f"\nval/loss: {val_loss}, val/acc: {val_acc}, val/prec: {val_prec}, val/rec: {val_rec}, val/f1: {val_f1}"
             )
 
             # patience
@@ -254,6 +295,9 @@ def init_model(args):
             )
     else:
         raise NameError(f"Unknown model {args.model}")
+    
+    # for tracking gradients etc.
+    wandb.watch(model, log="all")  
     model.to(args.device)
 
     return model

@@ -51,7 +51,7 @@ def parse_args():
                         help="Probability of augmenting data with random defects.")
     parser.add_argument("--permute-fraction",
                         type=float,
-                        default=0.1,
+                        default=0.25,
                         help="Fraction of light curve to be randomly permuted.")
     parser.add_argument("--delete-fraction",
                         type=float,
@@ -67,7 +67,7 @@ def parse_args():
                         help="Window size for rolling mean and standard deviation.")
     parser.add_argument("--noise-std",
                         type=float,
-                        default=0.2,
+                        default=0.1,
                         help="Multiple of rolling standard deviation of noise added to light curve for training.")
     parser.add_argument("--min-snr",
                         type=float,
@@ -79,6 +79,9 @@ def parse_args():
     parser.add_argument("--debug",
                         action="store_true",
                         help="debug mode, smaller dataset")
+    parser.add_argument("--plot-examples",
+                        action="store_true",
+                        help="plot examples from dataloader for debugging (only used for test dataloader)")
 
     # model config
     parser.add_argument("--model",
@@ -106,11 +109,6 @@ def parse_args():
                         type=int,
                         default=1,
                         help="Number of convolutional layers.")
-    # parser.add_argument("--max-lc-length",
-    #                     type=int,
-    #                     default=2600,
-    #                     help="Maximum length of light curve. Default to 18900/7 for binned flux sectors 10-14")
-
 
     # training config
     parser.add_argument("--optimizer",
@@ -134,7 +132,7 @@ def parse_args():
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
-                        default=500,
+                        default=2000,
                         help="number of epochs")
     parser.add_argument("--lr",
                         type=float,

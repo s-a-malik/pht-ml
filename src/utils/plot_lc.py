@@ -290,7 +290,7 @@ def plot_lc(sec, tic_id, binfac):
         transforms.MirrorFlip(prob=0.0),
         # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-        transforms.GaussianNoise(prob=1.0, window=100, std=0.005),
+        transforms.GaussianNoise(prob=1.0, window=100, std=0.1),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()

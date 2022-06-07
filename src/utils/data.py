@@ -20,24 +20,26 @@ import pandas as pd
 
 from astropy.table import Table
 
-# import transforms
-# from utils import plot_lc
-from utils import transforms
-from utils.utils import plot_lc
+if __name__ == "__main__":
+    import transforms
+    from utils import plot_lc
+else:
+    from utils import transforms
+    from utils.utils import plot_lc
 
+# sector 11 looks dodgy, sector 16 empty
 
 TRAIN_SECTORS_DEBUG = [10]
-# TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21]
-# sector 11 looks dodgy, sector 16 empty
+# TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20]
 TRAIN_SECTORS_FULL = [10,12,13,14,15,17]
 
 VAL_SECTORS_DEBUG = [12]
-# VAL_SECTORS_FULL = [22,23,24]
-VAL_SECTORS_FULL = [18,19,20]
+VAL_SECTORS_FULL = [21,22,23]
+# VAL_SECTORS_FULL = [18,19,20]
 
 TEST_SECTORS_DEBUG = [14]
 # TEST_SECTORS_FULL = [37]
-TEST_SECTORS_FULL = [21]
+TEST_SECTORS_FULL = [24]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -59,7 +61,8 @@ class LCData(torch.utils.data.Dataset):
         single_transit_only=True,
         transform=None,
         preprocessing=None,
-        store_cache=True
+        store_cache=True,
+        plot_examples=False,
         ):
         """
         Params:
@@ -73,6 +76,7 @@ class LCData(torch.utils.data.Dataset):
         - transform (callable): transform to apply to the data in getitem
         - preprocessing (callable): preprocessing to apply to the data (before caching)
         - store_cache (bool): whether to store all the data in RAM in advance
+        - plot_examples (bool): whether to plot the light curves for debugging
         """
         super(LCData, self).__init__()
 
@@ -86,6 +90,7 @@ class LCData(torch.utils.data.Dataset):
         self.transform = transform
         self.store_cache = store_cache
         self.preprocessing = preprocessing
+        self.plot_examples = plot_examples
         
         self.sectors = self._get_sectors()
 
@@ -119,6 +124,11 @@ class LCData(torch.utils.data.Dataset):
         if self.synthetic_prob > 0.0:
             self.pl_data = self._get_pl_data()
             print(f"using {self.synthetic_prob} proportion of synthetic data. Single transit only? {self.single_transit_only}")
+
+        ##### eclipsing binaries
+        if self.eb_prob > 0.0:
+            self.eb_data = self._get_eb_data()
+            print(f"using {self.eb_prob} proportion of synthetic eclipsing binaries")
 
         ##### cache data
         self.cache = {}
@@ -161,56 +171,64 @@ class LCData(torch.utils.data.Dataset):
             lc_file = self.lc_file_list[idx]
             x = _read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
-            if (x is None):
+            if x["flux"] is None:
                 if self.store_cache:
-                    self.cache[idx] = ({"flux": None}, None)
-                return {"flux": None}, None
+                    self.cache[idx] = (x, None)
+                return x, None
+
+            if self.plot_examples:
+                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
 
             # preprocessing
             if self.preprocessing:
                 x["flux"] = self.preprocessing(x["flux"])
-
+                if self.plot_examples:
+                    plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_preprocessed_{idx}.png")
 
             # get label for this lc file (if exists), match sector 
             y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
             if len(y) == 1:
                 y = torch.tensor(y[0], dtype=torch.float)
             elif len(y) > 1:
-                # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
                 y = None
-                # self.no_label_tics.append((tic, sec))
             else:
-                # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
                 y = None
-                # self.no_label_tics.append((tic, sec))
 
             if self.store_cache:
                 # add to cache 
                 self.cache[idx] = (deepcopy(x), deepcopy(y))
 
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
-
         # probabilistically add synthetic transits, only if labels are zero.
-        if (np.random.rand() < self.synthetic_prob) and (y == 0.0):
+        rand_num = np.random.rand()
+        if (rand_num < self.synthetic_prob) and (y == 0.0):
             x = self._add_synthetic_transit(x)
-            # if bad snr, return none
-            if x is None:
-                return {"flux": None}, None
             y = torch.tensor(1.0, dtype=torch.float)
+        # add a small delta in case eb_prob is 0.0
+        elif (self.synthetic_prob < rand_num < self.synthetic_prob + self.eb_prob + 1e-8) and (y == 0.0) and (self.eb_prob > 0.0):
+            x = self._add_synthetic_eclipse_binary(x)
+            y = torch.tensor(0.0, dtype=torch.float)
         else:
             x["tic_inj"] = -1
             x["depth"] = -1
             x["duration"] = -1
             x["period"] = -1
             x["snr"] = -1
+            x["eb_prim_depth"] = -1
+            x["eb_sec_depth"] = -1
+            x["eb_period"] = -1
+            x["class"] = "real"
 
-        # TODO add EB synthetics
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
+        # if transit additions failed, return None
+        if x["flux"] is None:
+            return x, None
+
+        if self.plot_examples:
+            plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
-
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
+            if self.plot_examples:
+                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
 
         return x, y
 
@@ -235,6 +253,64 @@ class LCData(torch.utils.data.Dataset):
         else:
             raise ValueError(f"Invalid data split {self.data_split}")
 
+    def _get_eb_data(self):
+        """Loads the eclipsing binary data
+        """
+        # simulated transit info
+        eb_table = Table.read(f"{self.data_root_path}/eb_csvs/ete6_eb_data.txt", format='ascii',comment='#')
+        eb_files = glob(f"{self.data_root_path}/eb_csvs/EBs_*binfac-{self.bin_factor}.csv")
+        print(f"found {len(eb_files)} eb flux files for binfac {self.bin_factor}")
+        
+        # load planetary transits into RAM
+        eb_data = {}   # dict of dicts with metadata
+        print("loading eb metadata...")
+        idx = 0
+        with trange(len(eb_files)) as t:
+            for eb_file in eb_files:
+                # extract tic id
+                tic_id = int(eb_file.split("/")[-1].split("_")[1].split(".")[0])
+                # check if we should include this planet
+                if not self._is_planet_in_data_split(tic_id):
+                    continue
+
+                # look up in table
+                eb_row = eb_table[eb_table['col1'] == tic_id]
+                eb_prim_depth = eb_row['col8'][0]
+                eb_sec_depth = eb_row['col9'][0]
+                eb_per = eb_row['col3'][0]     # transit period                  
+                eb_flux = np.genfromtxt(str(eb_file), skip_header=1)
+
+                if len(eb_flux) == 0:
+                    print(f"WARNING: no data for tic {tic_id}", eb_row)
+                    print(f"skipping...")
+                    continue
+                
+                eb_data[idx] = {"flux": eb_flux, "tic_id": tic_id, "eb_prim_depth": eb_prim_depth, "eb_sec_depth": eb_sec_depth, "eb_period": eb_per}
+                idx += 1
+                t.update()
+
+        print(f"Loaded {len(eb_data)} simulated transits for {self.data_split} data split")
+
+        return eb_data
+
+
+    def _add_synthetic_eclipse_binary(self, x):
+        """Adds synthetic eclipsing binary data.
+        """
+        eb_inj = self.eb_data[np.random.randint(len(self.eb_data))]    
+        x["flux"] = self._inject_transit(x["flux"], eb_inj["flux"], single_transit=False)
+        x["tic_inj"] = eb_inj["tic_id"]
+        x["eb_prim_depth"] = eb_inj["eb_prim_depth"]
+        x["eb_sec_depth"] = eb_inj["eb_sec_depth"]
+        x["eb_period"] = eb_inj["eb_period"]
+        x["depth"] = -1
+        x["duration"] = -1
+        x["period"] = -1
+        x["snr"] = -1
+        x["class"] = "eb"
+
+        return x
+
 
     def _get_pl_data(self):
         """Loads the planetary transits data.
@@ -246,7 +322,6 @@ class LCData(torch.utils.data.Dataset):
         
         # load planetary transits into RAM
         pl_data = {}   # dict of dicts with metadata
-        # TODO better to use a dict to speed up lookup or df to save memory?
         print("loading planet metadata...")
         idx = 0
         with trange(len(pl_files)) as t:
@@ -291,9 +366,7 @@ class LCData(torch.utils.data.Dataset):
                 idx += 1
                 t.update()
 
-    
         print(f"Loaded {len(pl_data)} simulated transits for {self.data_split} data split")
-        # print("examples", pl_data[-5:])
 
         return pl_data
 
@@ -339,7 +412,6 @@ class LCData(torch.utils.data.Dataset):
                 print(f"WARNING: no {durs_[j]} data for tic {x['tic']}")
                 pl_snr = 100.0
 
-            # print(f"pl_snr: {pl_snr}, pl_inj['depth']: {pl_inj['depth']}, pl_inj['duration']: {pl_inj['duration']}, durs: {durs_[j]} x_cdpp: {x_cdpp}")
             # if the SNR is lower than our threshhold, skip this target entirely. 
             # min_snr = 0.5 in the argparse - ask Nora.
             # max_snr = 15.0 in the argparse - ask Nora.
@@ -352,17 +424,21 @@ class LCData(torch.utils.data.Dataset):
                 num_bad += 1
                 # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
                 if num_bad > 5:
-                    print("too many bad SNRs. Skipping this target.")
-                    return None
+                    # print("too many bad SNRs. Skipping this target.")
+                    x["flux"] = None
+                    return x
         
-        x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"])
+        x["flux"] = self._inject_transit(x["flux"], pl_inj["flux"], single_transit=self.single_transit_only)
         x["tic_inj"] = pl_inj["tic_id"]
         x["depth"] = pl_inj["depth"]
         x["duration"] = pl_inj["duration"]
         x["period"] = pl_inj["period"]
         x["snr"] = pl_snr
-        # plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_unnorm_{idx}.png")
-
+        x["eb_prim_depth"] = -1
+        x["eb_sec_depth"] = -1
+        x["eb_period"] = -1
+        x["class"] = "synth_planet"
+    
         return x
 
     def _extract_single_transit(self, x):
@@ -386,8 +462,8 @@ class LCData(torch.utils.data.Dataset):
         return transit
 
 
-    def _inject_transit(self, base_flux, injected_flux):
-        """Inject a transit into a base light curve. 
+    def _inject_transit(self, base_flux, injected_flux, single_transit=False):
+        """Inject a transit into a base light curve. keep nans in the same place.
         N.B. Need to ensure both fluxes correspond to the same cadence.
         Params:
         - base_flux (np.array): base LC to inject into
@@ -397,14 +473,11 @@ class LCData(torch.utils.data.Dataset):
             injected_flux = injected_flux[:len(base_flux)-1]
         
         # ensure the injected flux is not in a missing data region. Only if single transit as the full curve may have a lot of missing data
-        if self.single_transit_only:
+        if single_transit:
             missing_data = True
             while missing_data:
                 # add injected flux section to random part of base flux
                 start_idx = np.random.randint(0, len(base_flux)-len(injected_flux))
-                # check if there is missing data in the injected flux
-                # print("checking for missing data")
-
                 # if there is 20% missing data in the transit, try again
                 # TODO maybe adjust this parameter?      
                 missing_data = np.count_nonzero(np.isnan(base_flux[start_idx:start_idx+len(injected_flux)])) / len(injected_flux) > 0.2
@@ -415,17 +488,14 @@ class LCData(torch.utils.data.Dataset):
 
         return base_flux
 
-
-
 ##### UTILS
 
-# TODO collate fn to return a good batch of simulated and real data (do this from the data loader
 def collate_fn(batch):
     """Collate function for filtering out corrupted data in the dataset
     Assumes that missing data are NoneType
     """
-    batch = [x for x in batch if x[0]["flux"] is not None]   # filter on missing flux 
-    batch = [x for x in batch if x[1] is not None]           # filter on missing labels
+    batch = [(x,y) for (x,y) in batch if x["flux"] is not None]   # filter on missing flux 
+    batch = [(x,y) for (x,y) in batch if y is not None]           # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
 
 
@@ -466,7 +536,7 @@ def _read_lc_csv(lc_file):
             x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
     except:
         # print("failed to read file: ", lc_file)
-        x = None
+        x = {"flux": None}
     return x
 
         
@@ -493,10 +563,11 @@ def get_data_loaders(args):
     multi_transit = args.multi_transit
     pin_memory = True
     debug = args.debug
+    plot_examples = args.plot_examples
 
     # preprocessing = torchvision.transforms.Compose([
     #     # transforms.RemoveOutliersPercent(percent_change=0.15),
-    #     # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+    #     transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
     # ])
     preprocessing = None
 
@@ -504,8 +575,8 @@ def get_data_loaders(args):
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
         transforms.MirrorFlip(prob=aug_prob),
-        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
+        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
@@ -539,7 +610,8 @@ def get_data_loaders(args):
         single_transit_only=not multi_transit,
         transform=training_transform,
         preprocessing=preprocessing,
-        store_cache=cache
+        store_cache=cache,
+        plot_examples=plot_examples
     )
 
     # same amount of synthetics in val set as in train set
@@ -553,7 +625,8 @@ def get_data_loaders(args):
         single_transit_only=not multi_transit,
         transform=val_transform,
         preprocessing=preprocessing,
-        store_cache=cache
+        store_cache=cache,
+        plot_examples=plot_examples
     )
 
     # no synthetics in test set
@@ -567,7 +640,8 @@ def get_data_loaders(args):
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
         preprocessing=preprocessing,
-        store_cache=cache
+        store_cache=cache,
+        plot_examples=plot_examples
     )
 
     print(f'Size of training set: {len(train_set)}')
@@ -582,7 +656,7 @@ def get_data_loaders(args):
                                                 collate_fn=collate_fn)
     val_dataloader = torch.utils.data.DataLoader(val_set,
                                                 batch_size=batch_size,
-                                                shuffle=False,
+                                                shuffle=True,               # shuffle val set as well to get different batches for prediction saving
                                                 num_workers=num_workers,
                                                 pin_memory=pin_memory,
                                                 collate_fn=collate_fn)
@@ -606,19 +680,18 @@ if __name__ == "__main__":
     ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
     ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
-    ap.add_argument("--permute-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly permuted.")
+    ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
     ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
     ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
-    ap.add_argument("--min-snr", type=float, default=2.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
     ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--num-workers", type=int, default=0)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
-    ap.add_argument("--multi-transit", action="store_true")
-    ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--plot-examples", action="store_true")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -630,9 +703,14 @@ if __name__ == "__main__":
                 print(i, x, y)
                 # print(x["flux"].shape, y.shape)
                 for j in range(len(x)):
-                    simulated = "sim" if x["tic_inj"][j] != -1 else "real"
+                    if x["snr"][j] != -1:
+                        simulated = "planet"
+                    elif x["eb_period"][j] != -1:
+                        simulated = "eb" 
+                    else:
+                        simulated = "real"
                     print(simulated)
-                    plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
+                    # plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
                     if j == 5:
                         break
                 break

@@ -10,9 +10,12 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import AutoMinorLocator
 
+import pandas as pd
 import numpy as np
 
 import torch
+
+from utils import metrics
 
 
 class AverageMeter(object):
@@ -63,9 +66,13 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
     checkpoint_file = os.path.join(scratch_dir, "ckpt.pth.tar")
     best_file = os.path.join(scratch_dir, "best.pth.tar")  
     torch.save(checkpoint_dict, checkpoint_file)
+    wandb.save(checkpoint_file, policy="live")  # save to wandb
+    print(f"Saved checkpoint to {checkpoint_file}")
 
     if is_best:
         shutil.copyfile(checkpoint_file, best_file)
+        print(f"Saved best checkpoint to {best_file}")
+        wandb.save(best_file, policy="live")    # save to wandb
 
 
 def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
@@ -115,27 +122,36 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     return fig, ax
 
 
-def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs, step):
+def save_examples(results, step):
     """Plot example predictions for inspection and save to wandb
     Params:
-    - fluxs (list): predicted fluxes
-    - probs (list): predicted probabilities
-    - targets (list): true fluxes
-    - targets_bin (list): true binary targets
-    - tics (list): tic ids
-    - secs (list): secs
-    - tic_injs (list): tic injections
-    - snrs (list): snrs
+    - results (dict):
+        - fluxs (list): predicted fluxes
+        - probs (list): predicted probabilities
+        - targets (list): true fluxes
+        - targets_bin (list): true binary targets
+        - tics (list): tic ids
+        - secs (list): secs
+        - tic_injs (list): tic injections
+        - snrs (list): snrs
+        - durations (list): durations
+        - periods (list): periods
+        - depths (list): depths
+        - eb_prim_depths (list): primary eb depth
+        - eb_sec_depths (list): secondary eb depth
+        - eb_periods (list): eb periods
     - step (int): step number (epoch)
     """
-    probs = np.array(probs)
+    probs = np.array(results["probs"])
+    targets = np.array(results["targets"])
+
     # most confident preds
     conf_preds_sorted = np.argsort(probs)[::-1]
     conf_preds_sorted = conf_preds_sorted[:5]
     for i, idx in enumerate(conf_preds_sorted):
         plt.clf()
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)
         wandb.log({f"pos_preds_{i}": wandb.Image(fig)}, step=step)
 
     # confident negative preds
@@ -143,26 +159,48 @@ def save_examples(fluxs, probs, targets, targets_bin, tics, secs, tic_injs, snrs
     neg_preds_sorted = neg_preds_sorted[:5]
     for i, idx in enumerate(neg_preds_sorted):
         plt.clf()
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]} prob: {probs[idx]}, target: {targets[idx]}")
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)        
         wandb.log({f"neg_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most uncertain preds (closest to 0.5)
     unc_preds_sorted = np.argsort(np.abs(0.5 - probs))
     unc_preds_sorted = unc_preds_sorted[:5]
     for i, idx in enumerate(unc_preds_sorted):
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+        plt.clf()
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)
         wandb.log({f"unc_preds_{i}": wandb.Image(fig)}, step=step)
 
     # most lossy preds (highest difference between prob and target)
     loss_preds_sorted = np.argsort(np.abs(probs - targets))[::-1]
     loss_preds_sorted = loss_preds_sorted[:5]
     for i, idx in enumerate(loss_preds_sorted):
-        fig, ax = plot_lc(fluxs[idx])
-        ax.set_title(f"tic: {tics[idx]} sec: {secs[idx]} tic_inj: {tic_injs[idx]}, snr: {snrs[idx]}, prob: {probs[idx]}, target: {targets[idx]}")
+        plt.clf()
+        fig, ax = plot_lc(results["fluxs"][idx])
+        _set_title(results, idx, ax)   
         wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
-    wandb.log({"roc": wandb.plot.roc_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1)),
-                "pr": wandb.plot.pr_curve(np.array(targets_bin, dtype=int), np.stack((1-probs,probs),axis=1))},
+    # losses
+    bce_losses = metrics.bce_loss_numpy(probs, targets)
+    # log results to wandb to be plotted in the dashboard (without flux)
+    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "class": results["classes"], "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"]})
+
+    wandb.log({"val_results": wandb.Table(dataframe=df),
+                "roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
+                "pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))},
                 step=step)
+
+
+def _set_title(results, idx, ax):
+    """Set the title of the plot 
+    """
+    if results["snrs"][idx] != -1:
+        # this is an injected planet 
+        ax.set_title(f'TRANSIT: tic: {results["tics"][idx]} sec: {results["secs"][idx]} tic_inj: {results["tic_injs"][idx]}, snr: {results["snrs"][idx]} prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
+    elif results["eb_periods"][idx] != -1:
+        # this is an injected eclipsing binary
+        ax.set_title(f'EB: tic: {results["tics"][idx]} sec: {results["secs"][idx]} tic_inj: {results["tic_injs"][idx]}, prim_depth: {results["eb_prim_depths"][idx]}, sec_depth: {results["eb_sec_depths"][idx]}, period: {results["eb_periods"][idx]}, prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
+    else:
+        # this is neither
+        ax.set_title(f'tic: {results["tics"][idx]} sec: {results["secs"][idx]} prob: {results["probs"][idx]}, target: {results["targets"][idx]}')

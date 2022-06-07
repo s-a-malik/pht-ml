@@ -36,7 +36,7 @@ class RamjetBin3(nn.Module):
         if self.input_dim == 6300:
             self.block10 = DenseBlock(input_dim=256*8, output_dim=512, dropout=self.dropout)
         elif self.input_dim == 5833:
-            self.block10 = DenseBlock(input_dim=256*6, output_dim=512, dropout=self.dropout)
+            self.block10 = DenseBlock(input_dim=256*7, output_dim=512, dropout=self.dropout)
         else:
             raise ValueError('input_dim not supported')
         self.block11 = DenseBlock(input_dim=512, output_dim=20, dropout=0, batch_normalization=False)

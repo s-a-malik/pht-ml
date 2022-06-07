@@ -12,15 +12,21 @@ import numpy as np
 import pandas as pd
 
 
-def preprocess_planets_flux(planet_root_path, save_path, bin_factor):
+def preprocess_flux(root_path, save_path, bin_factor, flux_type="planet"):
     """Bin the planet fluxes into a csv file.
     Params:
-    - planet_root_path (str): path to planet fits files
+    - root_path (str): path to flux txt files
     - save_path (str): path to save csv files
     - bin_factor (int): bin factor for light curves
+    - flux_type (str): type of flux to bin (eb or planet)
     """
     os.makedirs(save_path, exist_ok=True)
-    planet_files = glob(f"{planet_root_path}/Planets_*.txt")
+    if flux_type == "planet":
+        planet_files = glob(f"{root_path}/Planets_*.txt")
+    elif flux_type == "eb":
+        planet_files = glob(f"{root_path}/EBs_*.txt")
+    else:
+        raise ValueError("flux_type must be 'planet' or 'eb'")
     print(f"Found {len(planet_files)} files")
     with trange(len(planet_files)) as t: 
         for planet_file in planet_files:
@@ -43,7 +49,6 @@ def preprocess_planets_flux(planet_root_path, save_path, bin_factor):
             pd.DataFrame({"flux": flux_binned}).to_csv(file_name, index=False)
             # np.savetxt(file_name, flux, delimiter=",") # csv
             t.update()
-
 
 
 def preprocess_lcs(lc_root_path, save_path, sectors, bin_factor):
@@ -161,17 +166,26 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--lc-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/TESS")
     ap.add_argument("--planets-root-path", type=str, default="/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets")
+    ap.add_argument("--eb-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/eb_raw/EBs")
     ap.add_argument("--labels-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels")
     ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp")
     ap.add_argument("--planets-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/planet_csvs")
+    ap.add_argument("--eb-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/eb_csvs")
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--skip-planets", action="store_true")
+    ap.add_argument("--skip-ebs", action="store_true")
+    ap.add_argument("--skip-lcs", action="store_true")
     args = ap.parse_args()
     print(args)
 
     if not args.skip_planets:
         print("\nPreprocessing planets")
-        preprocess_planets_flux(args.planets_root_path, args.planets_save_path, args.bin_factor)
-    print("\nPreprocessing light curves")
-    preprocess_lcs(args.lc_root_path, args.save_path, SECTORS, args.bin_factor)
+        preprocess_flux(args.planets_root_path, args.planets_save_path, args.bin_factor, flux_type="planet")
+    if not args.skip_ebs:
+        print("\nPreprocessing EBs")
+        preprocess_flux(args.eb_root_path, args.eb_save_path, args.bin_factor, flux_type="eb")
+    if not args.skip_lcs:
+        print("\nPreprocessing light curves")
+        preprocess_lcs(args.lc_root_path, args.save_path, SECTORS, args.bin_factor)
+
 
