@@ -190,13 +190,9 @@ class LCData(torch.utils.data.Dataset):
             if len(y) == 1:
                 y = torch.tensor(y[0], dtype=torch.float)
             elif len(y) > 1:
-                # print(y, "more than one label for TIC: ", x["tic"], " in sector: ", x["sec"])
                 y = None
-                # self.no_label_tics.append((tic, sec))
             else:
-                # print(y, "label not found for TIC: ", x["tic"], " in sector: ", x["sec"])
                 y = None
-                # self.no_label_tics.append((tic, sec))
 
             if self.store_cache:
                 # add to cache 
@@ -579,7 +575,7 @@ def get_data_loaders(args):
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
         transforms.MirrorFlip(prob=aug_prob),
-        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),

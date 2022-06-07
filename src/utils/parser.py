@@ -67,7 +67,7 @@ def parse_args():
                         help="Window size for rolling mean and standard deviation.")
     parser.add_argument("--noise-std",
                         type=float,
-                        default=0.2,
+                        default=0.1,
                         help="Multiple of rolling standard deviation of noise added to light curve for training.")
     parser.add_argument("--min-snr",
                         type=float,
