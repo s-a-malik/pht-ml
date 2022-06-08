@@ -49,7 +49,6 @@ class ConvBlock(nn.Module):
 class ConvResBlock(nn.Module):
     """Two convolutional layers with a skip connection between them.
     Adapted from https://github.com/pytorch/vision/blob/a9a8220e0bcb4ce66a733f8c03a1c2f6c68d22cb/torchvision/models/resnet.py#L56-L72
-    TODO necessary? Can just do manually?
     """
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, padding: int = 1, 
                  pooling_size: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):

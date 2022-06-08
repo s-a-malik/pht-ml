@@ -241,6 +241,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                     "val/prec": val_prec,
                     "val/rec": val_rec,
                     "val/loss": val_loss,
+                    "epoch": epoch,
                 })
 
             # save checkpoint
