@@ -87,7 +87,7 @@ def parse_args():
     parser.add_argument("--model",
                         type=str,
                         default="ramjet",
-                        help="Model type: (ramjet, dense,).")
+                        help="Model type: (ramjet, dense, resnet).")
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,

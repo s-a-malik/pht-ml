@@ -293,6 +293,20 @@ def init_model(args):
                 output_dim=1,
                 dropout=0.1
             )
+    elif args.model == "resnet":
+        if args.bin_factor == 3:
+            raise NameError(f"Unknown model {args.model}, bin_factor {args.bin_factor}")
+            # model = nets.ResNetBin3(
+            #     input_dim=int(SHORTEST_LC / args.bin_factor),
+            #     output_dim=1,
+            #     dropout=0.1
+            # )
+        elif args.bin_factor == 7:
+            model = nets.ResNetBin7(
+                input_dim=int(SHORTEST_LC / args.bin_factor),
+                output_dim=1,
+                dropout=0.1
+            )
     else:
         raise NameError(f"Unknown model {args.model}")
     

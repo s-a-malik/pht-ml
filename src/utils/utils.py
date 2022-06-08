@@ -15,7 +15,7 @@ import numpy as np
 
 import torch
 
-from utils import metrics
+# from utils import metrics
 
 
 class AverageMeter(object):
@@ -75,6 +75,27 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
         wandb.save(best_file, policy="live")    # save to wandb
 
 
+def bce_loss_numpy(preds, labels, reduction="none", eps=1e-7):
+    """Computes the binary cross-entropy loss between predictions and labels.
+    Params:
+    - preds (np.array): predictions
+    - labels (np.array): labels
+    - reduction (str): reduction type
+    - eps (float): small number to avoid log(0)
+    Returns:
+    - loss (float): binary cross-entropy loss
+    """
+    preds = np.clip(preds, eps, 1 - eps)
+    if reduction == "none":
+        return -labels * np.log(preds) - (1 - labels) * np.log(1 - preds)
+    elif reduction == "mean":
+        return -np.mean(labels * np.log(preds) + (1 - labels) * np.log(1 - preds))
+    elif reduction == "sum":
+        return -np.sum(labels * np.log(preds) + (1 - labels) * np.log(1 - preds))
+    else:
+        raise ValueError("reduction must be 'none', 'mean', or 'sum'")
+
+
 def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
     """Plot light curve for debugging
     Params:
@@ -118,6 +139,7 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     ## save the image
     if save_path is not None:
         plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+        print(f"Saved light curve to {save_path}")
 
     return fig, ax
 
@@ -182,7 +204,7 @@ def save_examples(results, step):
         wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
     # losses
-    bce_losses = metrics.bce_loss_numpy(probs, targets)
+    bce_losses = bce_loss_numpy(probs, targets)
     # log results to wandb to be plotted in the dashboard (without flux)
     df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "class": results["classes"], "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"]})
 

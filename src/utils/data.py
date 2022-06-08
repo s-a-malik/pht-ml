@@ -575,7 +575,7 @@ def get_data_loaders(args):
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
         transforms.MirrorFlip(prob=aug_prob),
-        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),
@@ -685,7 +685,7 @@ if __name__ == "__main__":
     ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
     ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
     ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
-    ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
+    ap.add_argument("--noise-std", type=float, default=0.1, help="Standard deviation of noise added to light curve for training.")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--num-workers", type=int, default=0)
     ap.add_argument("--seed", type=int, default=123)
