@@ -79,6 +79,10 @@ def parse_args():
     parser.add_argument("--debug",
                         action="store_true",
                         help="debug mode, smaller dataset")
+    parser.add_argument("--data-split",
+                        type=str,
+                        default="standard",
+                        help="data split/amount to use, (debug, standard, full) default: standard")
     parser.add_argument("--plot-examples",
                         action="store_true",
                         help="plot examples from dataloader for debugging (only used for test dataloader)")

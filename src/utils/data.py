@@ -30,16 +30,16 @@ else:
 # sector 11 looks dodgy, sector 16 empty
 
 TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20]
-# TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+TRAIN_SECTORS_STANDARD = [10,11,12,13,14,15,16,17,18,19,20]
+TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
 
 VAL_SECTORS_DEBUG = [12]
-VAL_SECTORS_FULL = [21,22,23]
-# VAL_SECTORS_FULL = [30,31,32,33,34,35]
+VAL_SECTORS_STANDARD = [21,22,23]
+VAL_SECTORS_FULL = [30,31,32,33,34,35]
 
 TEST_SECTORS_DEBUG = [14]
-TEST_SECTORS_FULL = [24]
-# TEST_SECTORS_FULL = [36,37,38]
+TEST_SECTORS_STANDARD = [36]
+TEST_SECTORS_FULL = [36,37,38]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -238,11 +238,17 @@ class LCData(torch.utils.data.Dataset):
         Returns:
         - sectors (list): list of sectors
         """
-        if self.data_split == "train":
+        if self.data_split == "train_standard":
+            return TRAIN_SECTORS_STANDARD
+        elif self.data_split == "val_standard":
+            return VAL_SECTORS_STANDARD
+        elif self.data_split == "test_standard":
+            return TEST_SECTORS_STANDARD
+        if self.data_split == "train_full":
             return TRAIN_SECTORS_FULL
-        elif self.data_split == "val":
+        elif self.data_split == "val_full":
             return VAL_SECTORS_FULL
-        elif self.data_split == "test":
+        elif self.data_split == "test_full":
             return TEST_SECTORS_FULL
         elif self.data_split == "train_debug":
             return TRAIN_SECTORS_DEBUG
@@ -562,7 +568,7 @@ def get_data_loaders(args):
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
     pin_memory = True
-    debug = args.debug
+    data_split = args.data_split
     plot_examples = args.plot_examples
 
     # preprocessing = torchvision.transforms.Compose([
@@ -602,7 +608,7 @@ def get_data_loaders(args):
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_set = LCData(
         data_root_path=data_root_path,
-        data_split="train_debug" if debug else "train",
+        data_split=f"train_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
@@ -617,7 +623,7 @@ def get_data_loaders(args):
     # same amount of synthetics in val set as in train set
     val_set = LCData(
         data_root_path=data_root_path,
-        data_split="val_debug" if debug else "val",
+        data_split=f"val_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
@@ -632,7 +638,7 @@ def get_data_loaders(args):
     # no synthetics in test set
     test_set = LCData(
         data_root_path=data_root_path,
-        data_split="test_debug" if debug else "test",
+        data_split=f"test_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=0.0,
         eb_prob=0.0,
@@ -675,7 +681,7 @@ if __name__ == "__main__":
     # parse data args only
     ap = argparse.ArgumentParser(description="test dataloader")
     ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
-    ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--data-split", type=str, default="debug")
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
