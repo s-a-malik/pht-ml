@@ -6,7 +6,8 @@
 # --multi-transit --num-workers 4
 # --model dense --hid-dims 2048 1024 512 256 128 64 32 --num-workers 4
 #--num-workers 4 --bin-factor 7 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.7 --batch-size 128
---num-workers 4 --bin-factor 7 --synthetic-prob 0.7 --min-snr 1 --noise-std 0.1 --batch-size 256 --model resnet_big --data-split debug
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.7 --min-snr 1 --noise-std 0.1 --batch-size 256 --model resnet_big --data-split debug
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.7 --min-snr 1 --noise-std 0.1 --batch-size 256 --model resnet_big --data-split debug --checkpoint x9rum700 --evaluate
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --min-snr 0.5 --noise-std 0.2 --batch-size 1024 --model resnet
 # --num-workers 0 --bin-factor 7 --data-split debug
 # --experiment-name eb-test --num-workers 4 --bin-factor 3 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.3 --eb-prob 0.3 --epochs 3000

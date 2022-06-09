@@ -74,7 +74,6 @@ class ConvResBlock(nn.Module):
         out = self.conv2(out)
         if self.downsample is not None:
             identity = self.downsample(x)
-            print("identity:", identity.shape)
         # skip connection
         out += identity
         out = self.act2(out)
