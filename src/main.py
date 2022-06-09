@@ -89,8 +89,17 @@ def main(args):
     # load model
     model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, args.device, best_file)
 
-    # evaluate on val and test set
+    # evaluate on all sets
     with torch.no_grad():
+        print("\nEVALUATION\n")
+        train_loss, train_acc, train_f1, train_prec, train_rec = evaluate(
+                model=model,
+                optimizer=optimizer,
+                criterion=criterion,
+                data_loader=train_loader,
+                device=args.device,
+                task="val")
+        print(f"Train loss: {train_loss:.4f}, accuracy: {train_acc:.4f}, f1: {train_f1:.4f}, precision: {train_prec:.4f}, recall: {train_rec:.4f}")
         val_loss, val_acc, val_f1, val_prec, val_rec = evaluate(
                 model=model,
                 optimizer=optimizer,
@@ -99,7 +108,7 @@ def main(args):
                 device=args.device,
                 task="val",
                 save_examples=epoch if epoch else best_epoch)
-        print(f"Final Validation loss: {val_loss:.4f}, accuracy: {val_acc:.4f}, f1: {val_f1:.4f}, precision: {val_prec:.4f}, recall: {val_rec:.4f}")
+        print(f"Validation loss: {val_loss:.4f}, accuracy: {val_acc:.4f}, f1: {val_f1:.4f}, precision: {val_prec:.4f}, recall: {val_rec:.4f}")
         test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, results = evaluate(
             model=model, 
             optimizer=optimizer,
@@ -110,7 +119,13 @@ def main(args):
         print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc:.4f}, Test F1: {test_f1:.4f}, Test precision: {test_prec:.4f}, Test recall: {test_rec:.4f}, Test AUC: {test_auc:.4f}")
     
     results = {"test/" + k: v for k, v in results.items()}
-    results.update({"val_best/loss": val_loss,
+    results.update({
+        "train_best/loss": train_loss,
+        "train_best/acc": train_acc,
+        "train_best/f1": train_f1,
+        "train_best/prec": train_prec,
+        "train_best/rec": train_rec,
+        "val_best/loss": val_loss,
         "val_best/acc": val_acc,
         "val_best/f1": val_f1,
         "val_best/prec": val_prec,
