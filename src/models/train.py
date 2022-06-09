@@ -267,7 +267,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
     except KeyboardInterrupt:
         pass
 
-    return model
+    return model, epoch + 1
 
 
 def init_model(args):

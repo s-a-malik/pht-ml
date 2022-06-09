@@ -64,9 +64,9 @@ def main(args):
             run_path=f"s-a-malik/{args.wandb_project}/{args.checkpoint}",
             root=model_path)
         # load state dict
-        model, optimizer = load_checkpoint(model, optimizer, args.device,
+        model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, args.device,
                                                  wandb_best_file.name)
-    
+
     # get data
     train_loader, val_loader, test_loader = get_data_loaders(args)
 
@@ -81,21 +81,41 @@ def main(args):
 
     # train
     if not args.evaluate:
-        model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
+        model, epoch = training_run(args, model, optimizer, criterion, train_loader, val_loader)
     else:
+        epoch = None
         best_file = wandb_best_file.name
     
     # load model
-    model, optimizer = load_checkpoint(model, optimizer, args.device, best_file)
+    model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, args.device, best_file)
 
-    # evaluate on test set
+    # evaluate on val and test set
     with torch.no_grad():
-        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, results = evaluate(model, optimizer, criterion, test_loader, args.device, task="test")
-    
-    print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc:.4f}, Test F1: {test_f1:.4f}, Test precision: {test_prec:.4f}, Test recall: {test_rec:.4f}, Test AUC: {test_auc:.4f}")
+        val_loss, val_acc, val_f1, val_prec, val_rec = evaluate(
+                model=model,
+                optimizer=optimizer,
+                criterion=criterion,
+                data_loader=val_loader,
+                device=args.device,
+                task="val",
+                save_examples=epoch if epoch else best_epoch)
+        print(f"Final Validation loss: {val_loss:.4f}, accuracy: {val_acc:.4f}, f1: {val_f1:.4f}, precision: {val_prec:.4f}, recall: {val_rec:.4f}")
+        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, results = evaluate(
+            model=model, 
+            optimizer=optimizer,
+            criterion=criterion,
+            data_loader=test_loader,
+            device=args.device,
+            task="test")
+        print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc:.4f}, Test F1: {test_f1:.4f}, Test precision: {test_prec:.4f}, Test recall: {test_rec:.4f}, Test AUC: {test_auc:.4f}")
     
     results = {"test/" + k: v for k, v in results.items()}
-    results.update({"test/loss": test_loss,
+    results.update({"val_best/loss": val_loss,
+        "val_best/acc": val_acc,
+        "val_best/f1": val_f1,
+        "val_best/prec": val_prec,
+        "val_best/rec": val_rec,
+        "test/loss": test_loss,
         "test/acc": test_acc,
         "test/f1": test_f1,
         "test/prec": test_prec,

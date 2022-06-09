@@ -52,7 +52,7 @@ def load_checkpoint(model, optimizer, device, checkpoint_file: str):
     print(f"Loaded {checkpoint_file}, "
           f"trained to epoch {checkpoint['epoch']+1} with best loss {checkpoint['best_loss']}")
 
-    return model, optimizer
+    return model, optimizer, checkpoint["epoch"]+1, checkpoint["best_loss"]
 
 
 def save_checkpoint(checkpoint_dict: dict, is_best: bool):
