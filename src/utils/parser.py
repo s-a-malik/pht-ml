@@ -76,9 +76,6 @@ def parse_args():
     parser.add_argument("--multi-transit",
                         action="store_true",
                         help="take all transits in light curve from simulated data.")
-    parser.add_argument("--debug",
-                        action="store_true",
-                        help="debug mode, smaller dataset")
     parser.add_argument("--data-split",
                         type=str,
                         default="standard",
