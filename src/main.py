@@ -46,18 +46,9 @@ def main(args):
     optimizer, criterion = init_optim(args, model)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
     print(f"Number of model parameters: {num_params}")
-    wandb.config.num_params = num_params     # add to wandb config
     print(model)
     print(optimizer)
     print(criterion)
-
-    train_loader, val_loader, test_loader = get_data_loaders(args)
-    wandb.config.num_train_examples = len(train_loader.dataset)
-    wandb.config.train_sectors = train_loader.dataset.sectors
-    wandb.config.num_val_examples = len(val_loader.dataset)
-    wandb.config.val_sectors = val_loader.dataset.sectors
-    wandb.config.num_test_examples = len(test_loader.dataset)
-    wandb.config.test_sectors = test_loader.dataset.sectors
 
     # files for checkpoints
     scratch_dir = os.getenv('SCRATCH_DIR', wandb.run.dir)   # if given a scratch dir save models here
@@ -76,6 +67,18 @@ def main(args):
         model, optimizer = load_checkpoint(model, optimizer, args.device,
                                                  wandb_best_file.name)
     
+    # get data
+    train_loader, val_loader, test_loader = get_data_loaders(args)
+
+    # add to wandb config
+    wandb.config.num_params = num_params     
+    wandb.config.num_train_examples = len(train_loader.dataset)
+    wandb.config.train_sectors = train_loader.dataset.sectors
+    wandb.config.num_val_examples = len(val_loader.dataset)
+    wandb.config.val_sectors = val_loader.dataset.sectors
+    wandb.config.num_test_examples = len(test_loader.dataset)
+    wandb.config.test_sectors = test_loader.dataset.sectors
+
     # train
     if not args.evaluate:
         model = training_run(args, model, optimizer, criterion, train_loader, val_loader)
@@ -100,7 +103,7 @@ def main(args):
         "test/auc": test_auc})
     wandb.log(results)
 
-    # save to a results file
+    # TODO save to a results file? (all on wandb anyway)
     # df = pd.DataFrame({"pred": test_pred, "targets": test_targets, "tics": test_tics, "secs": test_secs, "tic_injs": test_tic_injs})
     # df.to_csv(f"{results_path}/results.csv", index=False)
 

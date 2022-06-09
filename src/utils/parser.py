@@ -132,7 +132,7 @@ def parse_args():
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
-                        default=500,
+                        default=1000,
                         help="number of epochs")
     parser.add_argument("--lr",
                         type=float,

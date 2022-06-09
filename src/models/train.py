@@ -273,7 +273,9 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
 def init_model(args):
     """Initialize model
     """
-    if args.model == "dense":
+    model_name = f"{args.model}_{args.bin_factor}" if args.model != "dense" else args.model
+
+    if model_name == "dense":
         model = nets.SimpleNetwork(
             input_dim=int(SHORTEST_LC / args.bin_factor),
             hid_dims=args.hid_dims,
@@ -281,33 +283,30 @@ def init_model(args):
             non_linearity=args.activation,
             dropout=args.dropout
         )
-    elif args.model == "ramjet":
-        if args.bin_factor == 3:
-            model = nets.RamjetBin3(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
-        elif args.bin_factor == 7:
-            model = nets.RamjetBin7(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
-    elif args.model == "resnet":
-        if args.bin_factor == 3:
-            raise NameError(f"Unknown model {args.model}, bin_factor {args.bin_factor}")
-            # model = nets.ResNetBin3(
-            #     input_dim=int(SHORTEST_LC / args.bin_factor),
-            #     output_dim=1,
-            #     dropout=0.1
-            # )
-        elif args.bin_factor == 7:
-            model = nets.ResNetBin7(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
+    elif model_name == "ramjet_3":
+        model = nets.RamjetBin3(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "ramjet_7":
+        model = nets.RamjetBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_7":
+        model = nets.ResNetBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_big_7":
+        model = nets.ResNetBigBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
     else:
         raise NameError(f"Unknown model {args.model}")
     
