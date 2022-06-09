@@ -67,7 +67,7 @@ class LCData(torch.utils.data.Dataset):
         """
         Params:
         - data_root_path (str): path to data directory 
-        - data_split (str): which data split to load (train(_debug)/val(_debug)/test(_debug))
+        - data_split (str): which data split to load
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
@@ -381,17 +381,17 @@ class LCData(torch.utils.data.Dataset):
         """Checks if a planet flux should be included in this data for simulation.
         Currently just uses the tic_id to select 1/4th of the available data for training/val.
         """
-        if self.data_split in ["train", "train_debug"]:
+        if "train" in self.data_split:
             if tic_id % 4 == 0:
                 return True
             else:
                 return False
-        elif self.data_split in ["val", "val_debug"]:
+        elif "val" in self.data_split:
             if tic_id % 4 == 1:
                 return True
             else:
                 return False
-        elif self.data_split in ["test", "test_debug"]:
+        elif "test" in self.data_split:
             if (tic_id % 4 == 2) or (tic_id % 4 == 3):
                 return True
             else:
