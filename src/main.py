@@ -138,7 +138,7 @@ def main(args):
         "test/f1": test_f1,
         "test/prec": test_prec,
         "test/rec": test_rec,
-        "test/auc": test_auc
+        "test/auc": test_auc,
         "test_results": wandb.Table(dataframe=df),
         "test/roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
         "test/pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))})

@@ -149,7 +149,7 @@ def parse_args():
                         help="momentum")
     parser.add_argument("--patience",
                         type=int,
-                        default=100000,
+                        default=300,
                         help="number of epochs patience")
     
     # evaluation
