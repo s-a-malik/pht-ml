@@ -11,7 +11,7 @@ import pandas as pd
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
 
-from utils.utils import load_checkpoint
+from utils.utils import load_checkpoint, bce_loss_numpy
 from utils.parser import parse_args
 from utils.data import get_data_loaders
 from models.train import training_run, evaluate, init_model, init_optim
@@ -117,9 +117,12 @@ def main(args):
             device=args.device,
             task="test")
         print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc:.4f}, Test F1: {test_f1:.4f}, Test precision: {test_prec:.4f}, Test recall: {test_rec:.4f}, Test AUC: {test_auc:.4f}")
-    
-    results = {"test/" + k: v for k, v in results.items()}
-    results.update({
+    # put test results in a wandb table
+    probs = np.array(results["probs"])
+    targets = np.array(results["targets"])
+    bce_losses = np.array(results["bce_losses"])
+    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "class": results["classes"], "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"]})
+    wandb.log({
         "train_best/loss": train_loss,
         "train_best/acc": train_acc,
         "train_best/f1": train_f1,
@@ -135,12 +138,8 @@ def main(args):
         "test/f1": test_f1,
         "test/prec": test_prec,
         "test/rec": test_rec,
-        "test/auc": test_auc})
-    wandb.log(results)
-
-    # TODO save to a results file? (all on wandb anyway)
-    # df = pd.DataFrame({"pred": test_pred, "targets": test_targets, "tics": test_tics, "secs": test_secs, "tic_injs": test_tic_injs})
-    # df.to_csv(f"{results_path}/results.csv", index=False)
+        "test/auc": test_auc
+        "test_results": wandb.Table(dataframe=df)})
 
     # finish wandb
     run.finish()
