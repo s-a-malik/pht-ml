@@ -137,7 +137,7 @@ def main(args):
         "val_best/prec": val_prec,
         "val_best/rec": val_rec,
         "val_best/auc": val_auc,
-        "val_best_results": wandb.Table(dataframe=val_df),
+        "val_best/results": wandb.Table(dataframe=val_df),
         "val_best/roc": wandb.plot.roc_curve(np.array(val_results["targets_bin"], dtype=int), np.stack((1-val_probs,val_probs),axis=1)),
         "val_best/pr": wandb.plot.pr_curve(np.array(val_results["targets_bin"], dtype=int), np.stack((1-val_probs,val_probs),axis=1)),
         "test/loss": test_loss,
@@ -146,7 +146,7 @@ def main(args):
         "test/prec": test_prec,
         "test/rec": test_rec,
         "test/auc": test_auc,
-        "test_results": wandb.Table(dataframe=test_df),
+        "test/results": wandb.Table(dataframe=test_df),
         "test/roc": wandb.plot.roc_curve(np.array(test_results["targets_bin"], dtype=int), np.stack((1-test_probs,test_probs),axis=1)),
         "test/pr": wandb.plot.pr_curve(np.array(test_results["targets_bin"], dtype=int), np.stack((1-test_probs,test_probs),axis=1))})
 
