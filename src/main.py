@@ -100,16 +100,15 @@ def main(args):
                 device=args.device,
                 task="val")
         print(f"Train loss: {train_loss:.4f}, accuracy: {train_acc:.4f}, f1: {train_f1:.4f}, precision: {train_prec:.4f}, recall: {train_rec:.4f}")
-        val_loss, val_acc, val_f1, val_prec, val_rec = evaluate(
+        val_loss, val_acc, val_f1, val_prec, val_rec, val_auc, val_results = evaluate(
                 model=model,
                 optimizer=optimizer,
                 criterion=criterion,
                 data_loader=val_loader,
                 device=args.device,
-                task="val",
-                save_examples=epoch if epoch else best_epoch)
+                task="test")
         print(f"Validation loss: {val_loss:.4f}, accuracy: {val_acc:.4f}, f1: {val_f1:.4f}, precision: {val_prec:.4f}, recall: {val_rec:.4f}")
-        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, results = evaluate(
+        test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_results = evaluate(
             model=model, 
             optimizer=optimizer,
             criterion=criterion,
@@ -117,11 +116,15 @@ def main(args):
             device=args.device,
             task="test")
         print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc:.4f}, Test F1: {test_f1:.4f}, Test precision: {test_prec:.4f}, Test recall: {test_rec:.4f}, Test AUC: {test_auc:.4f}")
-    # put test results in a wandb table
-    probs = np.array(results["probs"])
-    targets = np.array(results["targets"])
-    bce_losses = np.array(results["bce_losses"])
-    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "class": results["classes"], "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"]})
+    # put results in a wandb table
+    val_probs = np.array(val_results["probs"])
+    val_targets = np.array(val_results["targets"])
+    val_bce_losses = bce_loss_numpy(val_probs, val_targets)
+    val_df = pd.DataFrame({"bce_loss": val_bce_losses, "prob": val_probs, "target": val_targets, "class": val_results["classes"], "tic": val_results["tics"], "sec": val_results["secs"], "tic_inj": val_results["tic_injs"], "snr": val_results["snrs"], "duration": val_results["durations"], "period": val_results["periods"], "depth": val_results["depths"], "eb_prim_depth": val_results["eb_prim_depths"], "eb_sec_depth": val_results["eb_sec_depths"], "eb_period": val_results["eb_periods"]})
+    test_probs = np.array(test_results["probs"])
+    test_targets = np.array(test_results["targets"])
+    test_bce_losses = bce_loss_numpy(test_probs, test_targets)
+    test_df = pd.DataFrame({"bce_loss": test_bce_losses, "prob": test_probs, "target": test_targets, "class": test_results["classes"], "tic": test_results["tics"], "sec": test_results["secs"], "tic_inj": test_results["tic_injs"], "snr": test_results["snrs"], "duration": test_results["durations"], "period": test_results["periods"], "depth": test_results["depths"], "eb_prim_depth": test_results["eb_prim_depths"], "eb_sec_depth": test_results["eb_sec_depths"], "eb_period": test_results["eb_periods"]})
     wandb.log({
         "train_best/loss": train_loss,
         "train_best/acc": train_acc,
@@ -133,15 +136,19 @@ def main(args):
         "val_best/f1": val_f1,
         "val_best/prec": val_prec,
         "val_best/rec": val_rec,
+        "val_best/auc": val_auc,
+        "val_best_results": wandb.Table(dataframe=val_df),
+        "val_best/roc": wandb.plot.roc_curve(np.array(val_results["targets_bin"], dtype=int), np.stack((1-val_probs,val_probs),axis=1)),
+        "val_best/pr": wandb.plot.pr_curve(np.array(val_results["targets_bin"], dtype=int), np.stack((1-val_probs,val_probs),axis=1)),
         "test/loss": test_loss,
         "test/acc": test_acc,
         "test/f1": test_f1,
         "test/prec": test_prec,
         "test/rec": test_rec,
         "test/auc": test_auc,
-        "test_results": wandb.Table(dataframe=df),
-        "test/roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
-        "test/pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))})
+        "test_results": wandb.Table(dataframe=test_df),
+        "test/roc": wandb.plot.roc_curve(np.array(test_results["targets_bin"], dtype=int), np.stack((1-test_probs,test_probs),axis=1)),
+        "test/pr": wandb.plot.pr_curve(np.array(test_results["targets_bin"], dtype=int), np.stack((1-test_probs,test_probs),axis=1))})
 
     # finish wandb
     run.finish()
