@@ -501,9 +501,8 @@ def get_data_loaders(args):
         transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.MedianAtZero(),
         # transforms.MirrorFlip(prob=aug_prob),
-        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        # transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
-        # transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
+        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
