@@ -93,7 +93,7 @@ class LCData(torch.utils.data.Dataset):
         self.preprocessing = preprocessing
         self.plot_examples = plot_examples
         
-        self.sectors = self._get_sectors()
+        self.sectors = get_sectors(self.data_split)
 
         ####### LC data
 
@@ -170,7 +170,7 @@ class LCData(torch.utils.data.Dataset):
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
-            x = _read_lc_csv(lc_file)
+            x = read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
             if x["flux"] is None:
                 if self.store_cache:
@@ -233,32 +233,6 @@ class LCData(torch.utils.data.Dataset):
 
         return x, y
 
-
-    def _get_sectors(self):
-        """
-        Returns:
-        - sectors (list): list of sectors
-        """
-        if self.data_split == "train_standard":
-            return TRAIN_SECTORS_STANDARD
-        elif self.data_split == "val_standard":
-            return VAL_SECTORS_STANDARD
-        elif self.data_split == "test_standard":
-            return TEST_SECTORS_STANDARD
-        if self.data_split == "train_full":
-            return TRAIN_SECTORS_FULL
-        elif self.data_split == "val_full":
-            return VAL_SECTORS_FULL
-        elif self.data_split == "test_full":
-            return TEST_SECTORS_FULL
-        elif self.data_split == "train_debug":
-            return TRAIN_SECTORS_DEBUG
-        elif self.data_split == "val_debug":
-            return VAL_SECTORS_DEBUG
-        elif self.data_split == "test_debug":
-            return TEST_SECTORS_DEBUG
-        else:
-            raise ValueError(f"Invalid data split {self.data_split}")
 
     def _get_eb_data(self):
         """Loads the eclipsing binary data
@@ -497,6 +471,33 @@ class LCData(torch.utils.data.Dataset):
 
 ##### UTILS
 
+def get_sectors(data_split):
+    """
+    Returns:
+    - sectors (list): list of sectors
+    """
+    if data_split == "train_standard":
+        return TRAIN_SECTORS_STANDARD
+    elif data_split == "val_standard":
+        return VAL_SECTORS_STANDARD
+    elif data_split == "test_standard":
+        return TEST_SECTORS_STANDARD
+    if data_split == "train_full":
+        return TRAIN_SECTORS_FULL
+    elif data_split == "val_full":
+        return VAL_SECTORS_FULL
+    elif data_split == "test_full":
+        return TEST_SECTORS_FULL
+    elif data_split == "train_debug":
+        return TRAIN_SECTORS_DEBUG
+    elif data_split == "val_debug":
+        return VAL_SECTORS_DEBUG
+    elif data_split == "test_debug":
+        return TEST_SECTORS_DEBUG
+    else:
+        raise ValueError(f"Invalid data split {data_split}")
+
+
 def collate_fn(batch):
     """Collate function for filtering out corrupted data in the dataset
     Assumes that missing data are NoneType
@@ -506,7 +507,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-def _read_lc_csv(lc_file):
+def read_lc_csv(lc_file):
     """Read LC flux from preprocessed csv
     Params:
     - lc_file (str): path to lc_file
@@ -584,7 +585,8 @@ def get_data_loaders(args):
         transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
-        transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
+        # transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
+        transforms.InjectLCNoise(prob=aug_prob, lc_file_path=data_root_path, data_split=data_split),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()

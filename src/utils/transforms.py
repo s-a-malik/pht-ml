@@ -9,6 +9,7 @@ import pandas as pd
 
 import torch
 
+from data import read_lc_csv, get_sectors
 
 class ToFloatTensor(object):
     """Convert numpy array to float tensor.
@@ -182,6 +183,58 @@ class GaussianNoise(object):
 
                 # add noise (keeping the original nans as nans)
                 x += np.random.normal(0, rolling_std*self.std)
+        return x
+
+
+class InjectLCNoise(object):
+    """Add another LC to the data to simulate noise
+    """
+    def __init__(self, prob, data_root_path, data_split):
+        self.prob = prob
+        self.lc_file_path = lc_file_path
+        self.sectors = get_sectors(data_split)
+        # get list of all lc files
+        self.lc_file_list = []
+        for sector in self.sectors:
+            # print(f"sector: {sector}")
+            new_files = glob(f"{self.data_root_path}/lc_csvs_cdpp/Sector{sector}/*binfac-{self.bin_factor}.csv", recursive=True)
+            print("num. files found: ", len(new_files))
+            self.lc_file_list += new_files
+        print("total num. LC files found: ", len(self.lc_file_list))
+        # get labels
+        self.labels_df = pd.DataFrame()
+        for sector in self.sectors:
+            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
+        print("num. total labels (including simulated data): ", len(self.labels_df))
+
+        # removing non-zero labels and simulated data
+        self.labels_df = self.labels_df[~self.labels_df["subject_type"]]
+        self.labels_df = self.labels_df[self.labels_df["maxdb"] == 0]
+        print("num. zero LC labels: ", len(self.labels_df))
+
+        # remove non-zero LCs from list
+        print("num. LC files before removing non-zero LCs: ", len(self.lc_file_list))
+        self.lc_file_list = [x for x in self.lc_file_list if x.split("/")[-1].split("-")[1] in self.labels_df["TIC_ID"].values]
+        print("num. LC files after removing non-zero LCs: ", len(self.lc_file_list))
+
+
+    def __call__(self, x):
+        if np.random.rand() < self.prob:
+            injected = False 
+            while not injected:
+                # choose a random lc
+                lc_file = np.random.choice(self.lc_file_list)
+                lc = read_lc_csv(lc_file)
+                inj_flux = lc["flux"]
+                if inj_flux is not None:
+                    # normalise flux
+                    inj_flux /= np.abs(np.nanmedian(inj_flux))
+                    # make same length as x
+                    if len(inj_flux) >= len(x):
+                        inj_flux = inj_flux[:len(x)-1]
+                    # add noise
+                    x *= inj_flux
+                    injected = True
         return x
 
 
