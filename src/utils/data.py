@@ -486,7 +486,7 @@ class LCData(torch.utils.data.Dataset):
                 noise_file = self.lc_file_list[i]
                 x_noise = read_lc_csv(noise_file)
             inj_flux = x_noise["flux"]
-            tic_id = x_noise["tic"]
+            tic_id = x_noise.get("tic")
             # check if a non-transit tic id is in the injected flux
             if (inj_flux is not None) and (tic_id in self.zero_tics):
                 # normalise flux
@@ -506,8 +506,6 @@ class LCData(torch.utils.data.Dataset):
                 x["flux"] = x["flux"] * inj_flux
                 x["tic_noise"] = tic_id
                 injected = True
-            else:
-                print("trying again, not a zero tic")
         return x
 
 ##### UTILS
