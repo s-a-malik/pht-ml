@@ -497,8 +497,8 @@ def get_data_loaders(args):
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
         transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
+        transforms.NormaliseFlux(),
         transforms.MedianAtZero(),
         # transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),

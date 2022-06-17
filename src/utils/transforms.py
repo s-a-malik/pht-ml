@@ -11,7 +11,6 @@ import pandas as pd
 
 import torch
 
-# from utils import read_lc_csv, get_sectors
 from utils.utils import read_lc_csv, get_sectors
 
 class ToFloatTensor(object):
@@ -236,7 +235,6 @@ class InjectLCNoise(object):
 
 
     def __call__(self, x):
-        print("calling transform")
         if np.random.rand() < self.prob:
             injected = False 
             while not injected:
@@ -246,15 +244,20 @@ class InjectLCNoise(object):
                 inj_flux = lc["flux"]
                 if inj_flux is not None:
                     # normalise flux
-                    inj_flux /= np.abs(np.nanmedian(inj_flux))
+                    median = np.nanmedian(inj_flux)
+                    inj_flux /= np.abs(median)
+                    # if median is negative, put back to 1
+                    if median < 0:
+                        inj_flux += 2
                     # make same length as x
-                    print("normed", inj_flux)
                     if len(inj_flux) >= len(x):
                         inj_flux = inj_flux[:len(x)]
+                    else:
+                        inj_flux = np.pad(inj_flux, (0, len(x) - len(inj_flux)), "constant", constant_values=1)
+                    # fill in nans
+                    inj_flux = np.nan_to_num(inj_flux, nan=1.0)
                     # add noise
-                    print("unnoised", x)
                     x = x * inj_flux
-                    print("noised", x)
                     injected = True
         return x
 

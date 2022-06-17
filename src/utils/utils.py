@@ -110,7 +110,7 @@ def bce_loss_numpy(preds, labels, reduction="none", eps=1e-7):
         raise ValueError("reduction must be 'none', 'mean', or 'sum'")
 
 
-def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
+def plot_lc(x, save_path=None):
     """Plot light curve for debugging
     Params:
     - x (np.array): light curve
