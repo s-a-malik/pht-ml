@@ -42,6 +42,7 @@ class LCData(torch.utils.data.Dataset):
         bin_factor=7,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        lc_noise_prob=0.0,
         min_snr=0.5,
         single_transit_only=True,
         transform=None,
@@ -56,6 +57,7 @@ class LCData(torch.utils.data.Dataset):
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - lc_noise_prob (float): proportion of data to be noisy via injecting other lcs
         - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
         - transform (callable): transform to apply to the data in getitem
@@ -70,6 +72,7 @@ class LCData(torch.utils.data.Dataset):
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
+        self.lc_noise_prob = lc_noise_prob
         self.min_snr = min_snr
         self.single_transit_only = single_transit_only
         self.transform = transform
@@ -104,7 +107,9 @@ class LCData(torch.utils.data.Dataset):
         # check how many non-zero labels
         print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
         print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
-       
+        # zero labels
+        self.zero_tics = self.labels_df[self.labels_df["maxdb"] == 0]["TIC_ID"].tolist()
+
         ##### planetary transits 
         if self.synthetic_prob > 0.0:
             self.pl_data = self._get_pl_data()
@@ -119,10 +124,12 @@ class LCData(torch.utils.data.Dataset):
         self.cache = {}
         if self.store_cache:
             print("filling cache")
+            self.filling_cache = True
             with trange(len(self)) as t:
                 for i in range(len(self)):
                     self.__getitem__(i)
                     t.update()
+        self.filling_cache = False
 
     def __len__(self):
         return len(self.lc_file_list)
@@ -209,6 +216,14 @@ class LCData(torch.utils.data.Dataset):
 
         if (self.plot_examples) and (x["tic_inj"] != -1):
             plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
+
+        # add noise from another lc. Don't do this when filling cache
+        if (not self.filling_cache) and (np.random.rand() < self.lc_noise_prob):
+            x = self._add_lc_noise(x)
+            if self.plot_examples:
+                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_noised_with_{x['tic_noise']}_{idx}.png")
+        else:
+            x["tic_noise"] = -1
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
@@ -453,6 +468,48 @@ class LCData(torch.utils.data.Dataset):
 
         return base_flux
 
+    def _add_lc_noise(self, x):
+        """Add noise to the light curve.
+        Params:
+        - x (dict): light curve to add noise to
+        Returns:
+        - x (dict): light curve with noise added (added the key tic_noise)
+        """
+        injected = False
+        while not injected:
+            i = np.random.randint(len(self))
+            # load the flux
+            if i in self.cache:
+                x_noise, _ = self.cache[i]
+            else:
+                # get lc file
+                noise_file = self.lc_file_list[i]
+                x_noise = read_lc_csv(noise_file)
+            inj_flux = x_noise["flux"]
+            tic_id = x_noise["tic"]
+            # check if a non-transit tic id is in the injected flux
+            if (inj_flux is not None) and (tic_id in self.zero_tics):
+                # normalise flux
+                median = np.nanmedian(inj_flux)
+                inj_flux /= np.abs(median)
+                # if median is negative, put back to 1
+                if median < 0:
+                    inj_flux += 2
+                # make same length as x
+                if len(inj_flux) >= len(x["flux"]):
+                    inj_flux = inj_flux[:len(x["flux"])]
+                else:
+                    inj_flux = np.pad(inj_flux, (0, len(x["flux"]) - len(inj_flux)), "constant", constant_values=1)
+                # fill in nans
+                inj_flux = np.nan_to_num(inj_flux, nan=1.0)
+                # add noise to the base lc
+                x["flux"] = x["flux"] * inj_flux
+                x["tic_noise"] = tic_id
+                injected = True
+            else:
+                print("trying again, not a zero tic")
+        return x
+
 ##### UTILS
 
 def collate_fn(batch):
@@ -482,7 +539,6 @@ def get_data_loaders(args):
     rolling_window = args.rolling_window
     noise_std = args.noise_std
     min_snr = args.min_snr
-    # max_lc_length = args.max_lc_length
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
     pin_memory = True
@@ -497,7 +553,7 @@ def get_data_loaders(args):
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
-        transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
+        # transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.NormaliseFlux(),
         transforms.MedianAtZero(),
         # transforms.MirrorFlip(prob=aug_prob),
@@ -533,6 +589,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        lc_noise_prob=aug_prob,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
@@ -548,6 +605,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=val_transform,
@@ -563,6 +621,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,

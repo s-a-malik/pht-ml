@@ -201,7 +201,8 @@ class GaussianNoise(object):
 
 
 class InjectLCNoise(object):
-    """Add another LC to the data to simulate noise
+    """Add another LC to the data to simulate noise.
+    NOTE: This is too inefficient (need to cache but will be repeated with training set cache)
     """
     def __init__(self, prob, bin_factor, data_root_path, data_split):
         self.prob = prob

@@ -138,6 +138,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                     results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
                     results["eb_periods"] += x["eb_period"].tolist()
                     results["classes"] += x["class"]
+                    results["tic_noises"] += x["tic_noise"].tolist()
                     # save flux only if plotting
                     if save_examples != -1:
                         results["fluxs"] += flux.tolist()
@@ -146,7 +147,8 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             # profiler.step()
 
-    # compute metrics manually, handling zero division. TODO this could be done in a simpler way
+    # compute metrics manually, handling zero division. 
+    # TODO this could be done in a simpler way
     acc = np.divide((true_positives + true_negatives), total,  out=np.zeros_like((true_positives + true_negatives)), where=total!=0)
     prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
     rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)
