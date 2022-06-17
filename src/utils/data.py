@@ -207,7 +207,7 @@ class LCData(torch.utils.data.Dataset):
         if x["flux"] is None:
             return x, None
 
-        if self.plot_examples:
+        if (self.plot_examples) and (x["tic_inj"] != -1):
             plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
 
         if self.transform:
@@ -498,11 +498,12 @@ def get_data_loaders(args):
     # composed transform
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        transforms.MirrorFlip(prob=aug_prob),
-        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
+        transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
+        transforms.MedianAtZero(),
+        # transforms.MirrorFlip(prob=aug_prob),
+        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+        # transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         # transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
-        # transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -511,6 +512,7 @@ def get_data_loaders(args):
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.MedianAtZero(),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -518,6 +520,7 @@ def get_data_loaders(args):
 
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.MedianAtZero(),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()

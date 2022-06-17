@@ -25,8 +25,7 @@ class ToFloatTensor(object):
 
 
 class NormaliseFlux(object):
-    """Normalise the flux
-    TODO check what normalisation is best, add optional args
+    """Normalise the flux so median = 1 (or -1)
     """
     def __init__(self):
         pass
@@ -35,6 +34,19 @@ class NormaliseFlux(object):
         median = np.nanmedian(x)
         # normalise
         x /= np.abs(np.nanmedian(x))
+        # to fix numpy => torch byte error
+        x = x.astype(np.float64)  
+        return x
+
+
+class MedianAtZero(object):
+    """Median at zero
+    """
+    def __init__(self):
+        pass
+
+    def __call__(self, x):
+        median = np.nanmedian(x)
         # median at 0
         if median < 0:
             x += 1
@@ -232,16 +244,16 @@ class InjectLCNoise(object):
                 lc_file = np.random.choice(self.lc_file_list)
                 lc = read_lc_csv(lc_file)
                 inj_flux = lc["flux"]
-                print(inj_flux)
                 if inj_flux is not None:
                     # normalise flux
                     inj_flux /= np.abs(np.nanmedian(inj_flux))
                     # make same length as x
                     print("normed", inj_flux)
                     if len(inj_flux) >= len(x):
-                        inj_flux = inj_flux[:len(x)-1]
+                        inj_flux = inj_flux[:len(x)]
                     # add noise
-                    x *= inj_flux
+                    print("unnoised", x)
+                    x = x * inj_flux
                     print("noised", x)
                     injected = True
         return x
