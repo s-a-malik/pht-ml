@@ -4,7 +4,6 @@ Utility functions and classes for data manipulation.
 
 import os
 import argparse
-from ast import literal_eval
 import time
 from glob import glob
 import functools
@@ -22,25 +21,10 @@ from astropy.table import Table
 
 if __name__ == "__main__":
     import transforms
-    from utils import plot_lc
+    from utils import plot_lc, get_sectors, read_lc_csv
 else:
     from utils import transforms
-    from utils.utils import plot_lc
-
-# sector 11 looks dodgy, sector 16 empty
-
-TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_STANDARD = [10,11,12,13,14,15,16,17,18,19,20]
-TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
-
-# keep validation and test sets the same
-VAL_SECTORS_DEBUG = [12]
-VAL_SECTORS_STANDARD = [30,31,32,33,34,35]
-VAL_SECTORS_FULL = [30,31,32,33,34,35]
-
-TEST_SECTORS_DEBUG = [14]
-TEST_SECTORS_STANDARD = [36,37,38]
-TEST_SECTORS_FULL = [36,37,38]
+    from utils.utils import plot_lc, get_sectors, read_lc_csv
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -54,7 +38,7 @@ class LCData(torch.utils.data.Dataset):
     def __init__(
         self,
         data_root_path="/mnt/zfsusers/shreshth/pht_project/data",
-        data_split="train",
+        data_split="train_debug",
         bin_factor=7,
         synthetic_prob=0.0,
         eb_prob=0.0,
@@ -471,33 +455,6 @@ class LCData(torch.utils.data.Dataset):
 
 ##### UTILS
 
-def get_sectors(data_split):
-    """
-    Returns:
-    - sectors (list): list of sectors
-    """
-    if data_split == "train_standard":
-        return TRAIN_SECTORS_STANDARD
-    elif data_split == "val_standard":
-        return VAL_SECTORS_STANDARD
-    elif data_split == "test_standard":
-        return TEST_SECTORS_STANDARD
-    if data_split == "train_full":
-        return TRAIN_SECTORS_FULL
-    elif data_split == "val_full":
-        return VAL_SECTORS_FULL
-    elif data_split == "test_full":
-        return TEST_SECTORS_FULL
-    elif data_split == "train_debug":
-        return TRAIN_SECTORS_DEBUG
-    elif data_split == "val_debug":
-        return VAL_SECTORS_DEBUG
-    elif data_split == "test_debug":
-        return TEST_SECTORS_DEBUG
-    else:
-        raise ValueError(f"Invalid data split {data_split}")
-
-
 def collate_fn(batch):
     """Collate function for filtering out corrupted data in the dataset
     Assumes that missing data are NoneType
@@ -505,47 +462,6 @@ def collate_fn(batch):
     batch = [(x,y) for (x,y) in batch if x["flux"] is not None]   # filter on missing flux 
     batch = [(x,y) for (x,y) in batch if y is not None]           # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
-
-
-def read_lc_csv(lc_file):
-    """Read LC flux from preprocessed csv
-    Params:
-    - lc_file (str): path to lc_file
-    Returns:
-    - x (dict): dictionary with keys:
-        - flux (np.array): light curve
-        - tic (int): TIC
-        - sec (int): sector
-        - cam (int): camera
-        - chi (int): chi
-        - tessmag (float): TESS magnitude
-        - teff (float): effective temperature
-        - srad (float): stellar radius
-        - binfac (float): binning factor
-        - cdpp(05,1,2) (float): CDPP at 0.5, 1, 2 hour time scales
-    """
-    try:
-        # read the csv file
-        df = pd.read_csv(lc_file)
-        # get the flux
-        x = {}
-        x["flux"] = df["flux"].values
-
-        # parse the file name
-        file_name = lc_file.split("/")[-1]
-        params = file_name.split("_")
-        for i, param in enumerate(params):
-            if i == len(params) - 1:
-                # remove .csv
-                x[param.split("-")[0]] = literal_eval(param.split("-")[1][:-4])
-            else:
-                x[param.split("-")[0]] = literal_eval(param.split("-")[1])
-            # convert None to -1
-            x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
-    except:
-        # print("failed to read file: ", lc_file)
-        x = {"flux": None}
-    return x
 
         
 def get_data_loaders(args):
@@ -586,7 +502,7 @@ def get_data_loaders(args):
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
         # transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
-        transforms.InjectLCNoise(prob=aug_prob, lc_file_path=data_root_path, data_split=data_split),
+        # transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -679,29 +595,9 @@ def get_data_loaders(args):
     return train_dataloader, val_dataloader, test_dataloader
 
 
-if __name__ == "__main__":
-
-    # parse data args only
-    ap = argparse.ArgumentParser(description="test dataloader")
-    ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
-    ap.add_argument("--data-split", type=str, default="debug")
-    ap.add_argument("--bin-factor", type=int, default=7)
-    ap.add_argument("--synthetic-prob", type=float, default=1.0)
-    ap.add_argument("--eb-prob", type=float, default=0.0)
-    ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
-    ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
-    ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
-    ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
-    ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
-    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
-    ap.add_argument("--noise-std", type=float, default=0.1, help="Standard deviation of noise added to light curve for training.")
-    ap.add_argument("--batch-size", type=int, default=8)
-    ap.add_argument("--num-workers", type=int, default=0)
-    ap.add_argument("--seed", type=int, default=123)
-    ap.add_argument("--multi-transit", action="store_true")
-    ap.add_argument("--no-cache", action="store_true")
-    ap.add_argument("--plot-examples", action="store_true")
-    args = ap.parse_args()
+def test_dataloader(args):
+    """Module Test
+    """
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
@@ -725,3 +621,28 @@ if __name__ == "__main__":
                 break
             t.update()
     
+
+if __name__ == "__main__":
+    # parse data args only
+    ap = argparse.ArgumentParser(description="test dataloader")
+    ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
+    ap.add_argument("--data-split", type=str, default="debug")
+    ap.add_argument("--bin-factor", type=int, default=7)
+    ap.add_argument("--synthetic-prob", type=float, default=1.0)
+    ap.add_argument("--eb-prob", type=float, default=0.0)
+    ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
+    ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
+    ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
+    ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
+    ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
+    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--noise-std", type=float, default=0.1, help="Standard deviation of noise added to light curve for training.")
+    ap.add_argument("--batch-size", type=int, default=8)
+    ap.add_argument("--num-workers", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=123)
+    ap.add_argument("--multi-transit", action="store_true")
+    ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--plot-examples", action="store_true")
+    args = ap.parse_args()
+
+    test_dataloader()

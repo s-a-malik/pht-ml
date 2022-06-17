@@ -159,4 +159,9 @@ if __name__ == "__main__":
     # TODO experiment yaml config file instead?
     print("running on {}".format(args.device))
     print(args)
-    main(args)
+    if args.module_test == "dataloader":
+        print("\nTESTING DATALOADER")
+        from utils.data import test_dataloader
+        test_dataloader(args)
+    else:
+        main(args)

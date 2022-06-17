@@ -179,6 +179,12 @@ def parse_args():
                         default=50,
                         help="save example predictions on val set every n epochs")
 
+    # debug
+    parser.add_argument("--module-test",
+                        type=str,
+                        default="",
+                        help="test module (dataloader, )")
+
     args = parser.parse_args(sys.argv[1:])
 
     args.device = torch.device("cuda") if (not args.disable_cuda) and \

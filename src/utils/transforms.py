@@ -3,13 +3,16 @@
 
 import warnings
 
+from glob import glob
+
 import numpy as np
 
 import pandas as pd
 
 import torch
 
-from data import read_lc_csv, get_sectors
+# from utils import read_lc_csv, get_sectors
+from utils.utils import read_lc_csv, get_sectors
 
 class ToFloatTensor(object):
     """Convert numpy array to float tensor.
@@ -189,9 +192,10 @@ class GaussianNoise(object):
 class InjectLCNoise(object):
     """Add another LC to the data to simulate noise
     """
-    def __init__(self, prob, data_root_path, data_split):
+    def __init__(self, prob, bin_factor, data_root_path, data_split):
         self.prob = prob
-        self.lc_file_path = lc_file_path
+        self.bin_factor = bin_factor
+        self.data_root_path = data_root_path
         self.sectors = get_sectors(data_split)
         # get list of all lc files
         self.lc_file_list = []
@@ -202,23 +206,25 @@ class InjectLCNoise(object):
             self.lc_file_list += new_files
         print("total num. LC files found: ", len(self.lc_file_list))
         # get labels
-        self.labels_df = pd.DataFrame()
+        labels_df = pd.DataFrame()
         for sector in self.sectors:
-            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
-        print("num. total labels (including simulated data): ", len(self.labels_df))
+            labels_df = pd.concat([labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
+        print("num. total labels (including simulated data): ", len(labels_df))
 
         # removing non-zero labels and simulated data
-        self.labels_df = self.labels_df[~self.labels_df["subject_type"]]
-        self.labels_df = self.labels_df[self.labels_df["maxdb"] == 0]
-        print("num. zero LC labels: ", len(self.labels_df))
+        labels_df = labels_df[~labels_df["subject_type"]]
+        labels_df = labels_df[labels_df["maxdb"] == 0]
+        zero_tics = labels_df["TIC_ID"].to_list()
+        print("num. zero LC labels: ", len(zero_tics))
 
         # remove non-zero LCs from list
         print("num. LC files before removing non-zero LCs: ", len(self.lc_file_list))
-        self.lc_file_list = [x for x in self.lc_file_list if x.split("/")[-1].split("-")[1] in self.labels_df["TIC_ID"].values]
+        self.lc_file_list = [x for x in self.lc_file_list if int(x.split("/")[-1].split("-")[1].split("_")[0]) in zero_tics]
         print("num. LC files after removing non-zero LCs: ", len(self.lc_file_list))
 
 
     def __call__(self, x):
+        print("calling transform")
         if np.random.rand() < self.prob:
             injected = False 
             while not injected:
@@ -226,14 +232,17 @@ class InjectLCNoise(object):
                 lc_file = np.random.choice(self.lc_file_list)
                 lc = read_lc_csv(lc_file)
                 inj_flux = lc["flux"]
+                print(inj_flux)
                 if inj_flux is not None:
                     # normalise flux
                     inj_flux /= np.abs(np.nanmedian(inj_flux))
                     # make same length as x
+                    print("normed", inj_flux)
                     if len(inj_flux) >= len(x):
                         inj_flux = inj_flux[:len(x)-1]
                     # add noise
                     x *= inj_flux
+                    print("noised", x)
                     injected = True
         return x
 
