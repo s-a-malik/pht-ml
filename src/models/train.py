@@ -84,11 +84,11 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             # unpack batch from dataloader
             x, y = batch
             flux = x["flux"]
+            
             flux = flux.to(device)
             y = y.to(device)
             logits = model(flux)
             prob = torch.sigmoid(logits)
-            # preds = np.where(probs > 0.5, 1, 0)
             pred = (prob > 0.5).float()
             y_bin = (y > 0.5).float()
 

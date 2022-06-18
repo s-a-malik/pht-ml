@@ -132,8 +132,7 @@ class ResNetBin7(nn.Module):
 
         self.block0 = ConvResBlock(in_channels=1, out_channels=8, kernel_size=3, stride=1, batch_normalization=False,
                                                 dropout=0)
-        self.block0a = ConvResBlock(in_channels=8, out_channels=8, kernel_size=3, stride=2, batch_normalization=False,
-                                                dropout=0)
+        self.block0a = ConvResBlock(in_channels=8, out_channels=8, kernel_size=3, stride=2, dropout=0)
         self.block1 = ConvResBlock(in_channels=8, out_channels=8, kernel_size=3, stride=2, dropout=self.dropout)
         self.block2 = ConvResBlock(in_channels=8, out_channels=16, kernel_size=3, stride=2, dropout=self.dropout)
         self.block3 = ConvResBlock(in_channels=16, out_channels=32, kernel_size=3, stride=2, dropout=self.dropout)

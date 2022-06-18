@@ -8,8 +8,8 @@
 #--num-workers 4 --bin-factor 7 --min-snr 1 --noise-std 0.1 --synthetic-prob 0.7 --batch-size 128
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.7 --min-snr 1 --noise-std 0.1 --batch-size 256 --model resnet_big --data-split debug
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.7 --min-snr 1 --noise-std 0.1 --batch-size 256 --model resnet --data-split debug --checkpoint dz3wgr2j --evaluate
-#--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --noise-std 0.2 --batch-size 256 --data-split full --model resnet_big --experiment-name no-synth-full-lc-noise
---num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --noise-std 0.2 --batch-size 256 --data-split debug --model resnet_big --experiment-name no-synth-full-lc-noise
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --noise-std 0.2 --batch-size 256 --data-split full --model resnet_big --experiment-name no-synth-full-lc-noise
+#--num-workers 0 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --noise-std 0.2 --batch-size 256 --data-split debug --model resnet_big --experiment-name no-synth-full-lc-noise
 
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --min-snr 0.5 --noise-std 0.2 --batch-size 1024 --data-split full --model resnet --experiment-name resnet-full --checkpoint 39anbdxd --evaluate --no-cache
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --min-snr 0.5 --noise-std 0.2 --batch-size 256 --data-split full --model resnet_big --experiment-name resnet-big-full --checkpoint 177l1oe4 --evaluate --no-cache

@@ -134,9 +134,6 @@ class LCData(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.lc_file_list)
 
-
-    # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
-    # @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
         """Returns:
         - x (dict): dictionary with keys:
@@ -157,7 +154,9 @@ class LCData(torch.utils.data.Dataset):
         """
         # check if we have this data cached
         if idx in self.cache:
-            (x, y) = self.cache[idx]
+            (x_cache, y_cache) = self.cache[idx]
+            x = deepcopy(x_cache)
+            y = deepcopy(y_cache)
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
@@ -395,7 +394,7 @@ class LCData(torch.utils.data.Dataset):
             # if the SNR is lower than our threshhold, skip this target entirely. 
             # min_snr = 0.5 in the argparse - ask Nora.
             # max_snr = 15.0 in the argparse - ask Nora.
-            if (pl_snr < self.min_snr) or (pl_snr > 25):   
+            if (pl_snr < self.min_snr) or (pl_snr > 15):   
             # if pl_snr < self.min_snr:
                 bad_snr = True
             else:
@@ -403,7 +402,7 @@ class LCData(torch.utils.data.Dataset):
             if bad_snr:
                 num_bad += 1
                 # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
-                if num_bad > 5:
+                if num_bad > 10:
                     # print("too many bad SNRs. Skipping this target.")
                     x["flux"] = None
                     return x
@@ -475,6 +474,7 @@ class LCData(torch.utils.data.Dataset):
         Returns:
         - x (dict): light curve with noise added (added the key tic_noise)
         """
+        base_flux = x["flux"]
         injected = False
         while not injected:
             i = np.random.randint(len(self))
@@ -491,21 +491,25 @@ class LCData(torch.utils.data.Dataset):
             if (inj_flux is not None) and (tic_id in self.zero_tics):
                 # normalise flux
                 median = np.nanmedian(inj_flux)
-                inj_flux /= np.abs(median)
-                # if median is negative, put back to 1
-                if median < 0:
-                    inj_flux += 2
-                # make same length as x
-                if len(inj_flux) >= len(x["flux"]):
-                    inj_flux = inj_flux[:len(x["flux"])]
+                if np.isclose(median, 0):
+                    injected = False
                 else:
-                    inj_flux = np.pad(inj_flux, (0, len(x["flux"]) - len(inj_flux)), "constant", constant_values=1)
-                # fill in nans
-                inj_flux = np.nan_to_num(inj_flux, nan=1.0)
-                # add noise to the base lc
-                x["flux"] = x["flux"] * inj_flux
-                x["tic_noise"] = tic_id
-                injected = True
+                    inj_flux /= np.abs(median)
+                    # if median is negative, put back to 1
+                    if median < 0:
+                        inj_flux += 2
+                    # make same length as x
+                    if len(inj_flux) >= len(base_flux):
+                        inj_flux = inj_flux[:len(base_flux)-1]
+                    # fill in nans
+                    inj_flux = np.nan_to_num(inj_flux, nan=1.0)
+                    # add noise to the base lc
+                    start_idx = np.random.randint(0, len(base_flux)-len(inj_flux))
+                    base_flux[start_idx:start_idx+len(inj_flux)] = base_flux[start_idx:start_idx+len(inj_flux)] * inj_flux
+
+                    x["flux"] = base_flux
+                    x["tic_noise"] = tic_id
+                    injected = True
         return x
 
 ##### UTILS
@@ -587,7 +591,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
-        lc_noise_prob=aug_prob,
+        lc_noise_prob=1.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
