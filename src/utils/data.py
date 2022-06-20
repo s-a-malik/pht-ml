@@ -176,15 +176,17 @@ class LCData(torch.utils.data.Dataset):
                 if self.plot_examples:
                     plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_preprocessed_{idx}.png")
 
-            # get label for this lc file (if exists), match sector 
-            y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
-            if len(y) == 1:
-                y = torch.tensor(y[0], dtype=torch.float)
-            elif len(y) > 1:
-                y = None
+            # get labels for this lc file (if exists), match sector 
+            y_row = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"])]
+            if len(y_row) == 1:
+                y = torch.tensor(y_row["maxdb"].values[0], dtype=torch.float)
+                x["toi"] = y_row["TOI"].values[0]
+                x["tce"] = y_row["TCE"].values[0]
+                x["ctc"] = y_row["PHT_ctc"].values[0]
+                x["ctoi"] = y_row["PHT_ctoi"].values[0]
             else:
                 y = None
-
+            
             if self.store_cache:
                 # add to cache 
                 self.cache[idx] = (deepcopy(x), deepcopy(y))

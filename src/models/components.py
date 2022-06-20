@@ -24,7 +24,7 @@ class ConvBlock(nn.Module):
             self.dropout = None
         if pooling_size > 1:
             # ceil mode true to get same output size as stride with kernel_size=1
-            self.max_pooling = nn.MaxPool1d(kernel_size=pooling_size, ceil_mode=True)
+            self.max_pooling = nn.MaxPool1d(kernel_size=pooling_size, return_indices=False, ceil_mode=True)
         else:
             self.max_pooling = None
         if batch_normalization:

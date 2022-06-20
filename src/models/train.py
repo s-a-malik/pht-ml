@@ -138,6 +138,10 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                     results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
                     results["eb_periods"] += x["eb_period"].tolist()
                     results["classes"] += x["class"]
+                    results["tois"] += x["toi"].tolist()
+                    results["ctcs"] += x["ctc"].tolist()
+                    results["ctois"] += x["ctoi"].tolist()
+                    results["tces"] += x["tce"].tolist()
                     results["tic_noises"] += x["tic_noise"].tolist()
                     # save flux only if plotting
                     if save_examples != -1:

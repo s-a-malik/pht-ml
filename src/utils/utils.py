@@ -220,7 +220,12 @@ def save_examples(results, step):
     # losses
     bce_losses = bce_loss_numpy(probs, targets)
     # log results to wandb to be plotted in the dashboard (without flux)
-    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "class": results["classes"], "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"], "tic_noise": results["tic_noises"]})
+    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, 
+                    "class": results["classes"], "tic": results["tics"], "sec": results["secs"], 
+                    "toi": results["tois"], "tce": results["tces"], "ctc": results["ctcs"], "ctoi": results["ctois"],
+                    "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"],
+                    "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"],
+                    "tic_noise": results["tic_noises"]})
 
     wandb.log({"val/results": wandb.Table(dataframe=df),
                 "val/roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
