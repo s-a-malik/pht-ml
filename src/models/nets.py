@@ -1,12 +1,13 @@
 """model_classes.py
 Model classes for light curve classification
 """
+from functools import reduce
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.components import ConvBlock, ConvResBlock, DenseBlock, get_activation
+from models.components import *
 
 
 class RamjetBin3(nn.Module):
@@ -229,6 +230,89 @@ class ResNetBigBin7(nn.Module):
         outputs = self.linear_out(x)    # (B, 1)
 
         return outputs
+
+
+class WaveNetBin7(nn.Module):
+    """c.f. https://github.com/ButterscotchV/Wavenet-PyTorch/blob/master/wavenet/models.py
+    TODO: no dropout?
+    """
+    def __init__(self, 
+                 input_dim,
+                 num_channels=1,
+                 num_classes=1,
+                 num_blocks=2,
+                 num_layers=10,
+                 num_hidden=64,
+                 kernel_size=3,
+                 dropout=0.1):
+        super(WaveNetBin7, self).__init__()
+        self.input_dim = input_dim
+        self.num_channels = num_channels
+        self.num_classes = num_classes
+        self.num_blocks = num_blocks
+        self.num_layers = num_layers
+        self.num_hidden = num_hidden
+        self.kernel_size = kernel_size
+        self.dropout = dropout
+        self.receptive_field = 1 + (kernel_size - 1) * \
+                               num_blocks * sum([2**k for k in range(num_layers)])
+        self.output_width = input_dim - self.receptive_field + 1
+        print('receptive_field: {}'.format(self.receptive_field))
+        print('Output width: {}'.format(self.output_width))
+        
+        hs = []
+        batch_norms = []
+
+        # wavenet encoder
+        first = True
+        for b in range(num_blocks):
+            for i in range(num_layers):
+                rate = 2**i
+                if first:
+                    h = GatedResidualBlock(num_channels, num_hidden, kernel_size, 
+                                           self.output_width, dilation=rate, padding="same")
+                    first = False
+                else:
+                    h = GatedResidualBlock(num_hidden, num_hidden, kernel_size,
+                                           self.output_width, dilation=rate, padding="same")
+                h.name = 'b{}-l{}'.format(b, i)
+
+                hs.append(h)
+                batch_norms.append(nn.BatchNorm1d(num_hidden))
+
+        self.hs = nn.ModuleList(hs)
+        self.batch_norms = nn.ModuleList(batch_norms)
+
+        # downsample and classify
+        self.out_conv_1 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.out_conv_2 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.out_conv_3 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.out_conv_4 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.out_conv_5 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
+       
+        # dense layers
+        self.dense = DenseBlock(input_dim=num_hidden*47, output_dim=20, dropout=0, batch_normalization=False)
+        self.h_class = nn.Linear(20, num_classes)
+
+    def forward(self, x):
+        x = x.view(x.shape[0], 1, x.shape[-1])
+        skips = []
+        for layer, batch_norm in zip(self.hs, self.batch_norms):
+            x, skip = layer(x)
+            x = batch_norm(x)
+            skips.append(skip)
+        x = reduce((lambda a, b : torch.add(a, b)), skips)
+
+        x = self.out_conv_1(x)
+        x = self.out_conv_2(x)
+        x = self.out_conv_3(x)
+        x = self.out_conv_4(x)
+        x = self.out_conv_5(x)  
+
+        x = x.view(x.shape[0], -1)
+        x = self.dense(x)
+        return self.h_class(x)
+
 
 
 class SimpleNetwork(nn.Module):

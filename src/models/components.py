@@ -13,10 +13,10 @@ class ConvBlock(nn.Module):
     N.B. removed spatial dropout.
     """
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, padding=1, 
-                 pooling_size: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
+                 pooling_size: int = 1, dilation: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
         super(ConvBlock, self).__init__()
         # self.convolution = nn.Conv1D(filters, kernel_size=kernel_size)
-        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding, stride=stride)
+        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding, dilation=dilation, stride=stride)
         self.act = get_activation(non_linearity)
         if dropout > 0:
             self.dropout = nn.Dropout(p=dropout)
@@ -52,10 +52,10 @@ class ConvResBlock(nn.Module):
     Adapted from https://github.com/pytorch/vision/blob/a9a8220e0bcb4ce66a733f8c03a1c2f6c68d22cb/torchvision/models/resnet.py#L56-L72
     """
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, padding=1, 
-                 pooling_size: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
+                 pooling_size: int = 1, dilation: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
         super(ConvResBlock, self).__init__()
         self.conv1 = ConvBlock(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding,
-                                 pooling_size=pooling_size, dropout=dropout, batch_normalization=batch_normalization, non_linearity=non_linearity)
+                                dilation=dilation, pooling_size=pooling_size, dropout=dropout, batch_normalization=batch_normalization, non_linearity=non_linearity)
         if (stride > 1) or (pooling_size > 1) or (in_channels != out_channels):
             # TODO this is how resnet downsamples, could also pool instead
             self.downsample = nn.Sequential(
@@ -65,7 +65,7 @@ class ConvResBlock(nn.Module):
         else:
             self.downsample = None
         self.conv2 = ConvBlock(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=1, padding=padding,
-                                 pooling_size=1, dropout=dropout, batch_normalization=batch_normalization, non_linearity=None)
+                                dilation=dilation, pooling_size=1, dropout=dropout, batch_normalization=batch_normalization, non_linearity=None)
         self.act2 = get_activation(non_linearity)
 
     def forward(self, x):
@@ -79,6 +79,56 @@ class ConvResBlock(nn.Module):
         out = self.act2(out)
 
         return out
+
+
+# class DilatedConvBlock(nn.Module):
+#     """A block containing multiple dilated convolution layers and all the fixings that go with it.
+#     c.f. Wavenet paper  https://arxiv.org/pdf/1609.03499.pdf
+#     """
+
+#     def __init__(self):
+#         super(DilatedConvBlock, self).__init__()
+
+
+class GatedConv1d(nn.Module):
+    """c.f. https://github.com/ButterscotchV/Wavenet-PyTorch/blob/master/wavenet/models.py
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
+                 dilation=1):
+        super(GatedConv1d, self).__init__()
+        self.dilation = dilation
+        self.conv_f = nn.Conv1d(in_channels, out_channels, kernel_size, 
+                                stride=stride, padding=padding, dilation=dilation)
+        self.conv_g = nn.Conv1d(in_channels, out_channels, kernel_size, 
+                                stride=stride, padding=padding, dilation=dilation)
+        self.sig = nn.Sigmoid()
+
+    def forward(self, x):
+        # padding = self.dilation - (x.shape[-1] + self.dilation - 1) % self.dilation
+        # x = nn.functional.pad(x, (self.dilation, 0))
+        return torch.mul(self.conv_f(x), self.sig(self.conv_g(x)))
+
+
+class GatedResidualBlock(nn.Module):
+    """c.f. https://github.com/ButterscotchV/Wavenet-PyTorch/blob/master/wavenet/models.py
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, output_width, stride=1, padding=0, 
+                 dilation=1):
+        super(GatedResidualBlock, self).__init__()
+        self.output_width = output_width
+        self.gatedconv = GatedConv1d(in_channels, out_channels, kernel_size, 
+                                     stride=stride, padding=padding, 
+                                     dilation=dilation)
+        self.conv_1 = nn.Conv1d(out_channels, out_channels, 1, stride=1, padding=0,
+                                dilation=1)
+
+    def forward(self, x):
+        skip = self.conv_1(self.gatedconv(x))
+        residual = torch.add(skip, x)
+
+        skip_cut = skip.shape[-1] - self.output_width
+        skip = skip.narrow(-1, skip_cut, self.output_width)
+        return residual, skip
 
 
 class DenseBlock(nn.Module):

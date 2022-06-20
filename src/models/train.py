@@ -313,6 +313,10 @@ def init_model(args):
             output_dim=1,
             dropout=0.1
         )
+    elif model_name == "wavenet_7":
+        model = nets.WaveNetBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor)
+        )
     else:
         raise NameError(f"Unknown model {args.model}")
     
