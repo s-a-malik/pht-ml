@@ -313,6 +313,18 @@ def init_model(args):
             output_dim=1,
             dropout=0.1
         )
+    elif model_name == "resnet_full_conv_7":
+        model = nets.ResNetFullConvBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_big_kernel_7":
+        model = nets.ResNetBigKernelBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
     elif model_name == "wavenet_7":
         model = nets.WaveNetBin7(
             input_dim=int(SHORTEST_LC / args.bin_factor)
