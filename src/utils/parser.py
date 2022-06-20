@@ -76,9 +76,10 @@ def parse_args():
     parser.add_argument("--multi-transit",
                         action="store_true",
                         help="take all transits in light curve from simulated data.")
-    parser.add_argument("--debug",
-                        action="store_true",
-                        help="debug mode, smaller dataset")
+    parser.add_argument("--data-split",
+                        type=str,
+                        default="standard",
+                        help="data split/amount to use, (debug, standard, full) default: standard")
     parser.add_argument("--plot-examples",
                         action="store_true",
                         help="plot examples from dataloader for debugging (only used for test dataloader)")
@@ -87,7 +88,7 @@ def parse_args():
     parser.add_argument("--model",
                         type=str,
                         default="ramjet",
-                        help="Model type: (ramjet, dense,).")
+                        help="Model type: (ramjet, dense, resnet).")
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,
@@ -132,7 +133,7 @@ def parse_args():
                         help="batch size")
     parser.add_argument("--epochs",
                         type=int,
-                        default=2000,
+                        default=1000,
                         help="number of epochs")
     parser.add_argument("--lr",
                         type=float,
@@ -148,7 +149,7 @@ def parse_args():
                         help="momentum")
     parser.add_argument("--patience",
                         type=int,
-                        default=100000,
+                        default=300,
                         help="number of epochs patience")
     
     # evaluation
@@ -177,6 +178,12 @@ def parse_args():
                         type=int,
                         default=50,
                         help="save example predictions on val set every n epochs")
+
+    # debug
+    parser.add_argument("--module-test",
+                        type=str,
+                        default="",
+                        help="test module (dataloader, )")
 
     args = parser.parse_args(sys.argv[1:])
 

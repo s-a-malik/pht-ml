@@ -11,26 +11,24 @@ class ConvBlock(nn.Module):
     """A block containing a convolution and all the fixings that go with it.
     Adapted from ramjet https://github.com/golmschenk/ramjet/blob/master/ramjet/models/components/light_curve_network_block.py
     N.B. removed spatial dropout.
-    TODO port from keras
     """
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, pooling_size: int, dropout: float = 0.1,
-                 batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, padding=1, 
+                 pooling_size: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
         super(ConvBlock, self).__init__()
         # self.convolution = nn.Conv1D(filters, kernel_size=kernel_size)
-        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size)
+        self.conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding, stride=stride)
         self.act = get_activation(non_linearity)
         if dropout > 0:
             self.dropout = nn.Dropout(p=dropout)
         else:
             self.dropout = None
         if pooling_size > 1:
-            self.max_pooling = nn.MaxPool1d(kernel_size=pooling_size)
+            # ceil mode true to get same output size as stride with kernel_size=1
+            self.max_pooling = nn.MaxPool1d(kernel_size=pooling_size, return_indices=False, ceil_mode=True)
         else:
             self.max_pooling = None
         if batch_normalization:
             self.batch_normalization = nn.BatchNorm1d(out_channels)
-            # self.batch_normalization_input_reshape = Reshape([-1])
-            # self.batch_normalization_output_reshape = Reshape([-1, filters])
         else:
             self.batch_normalization = None
 
@@ -45,12 +43,42 @@ class ConvBlock(nn.Module):
         if self.max_pooling is not None:
             x = self.max_pooling(x)
         if self.batch_normalization is not None:
-            # if self.batch_normalization_input_reshape is not None: # TODO what is this for?
-            #     x = self.batch_normalization_input_reshape(x)
             x = self.batch_normalization(x)
-            # if self.batch_normalization_output_reshape is not None:
-            #     x = self.batch_normalization_output_reshape(x)
         return x
+
+
+class ConvResBlock(nn.Module):
+    """Two convolutional layers with a skip connection between them.
+    Adapted from https://github.com/pytorch/vision/blob/a9a8220e0bcb4ce66a733f8c03a1c2f6c68d22cb/torchvision/models/resnet.py#L56-L72
+    """
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, padding=1, 
+                 pooling_size: int = 1, dropout: float = 0.1, batch_normalization: bool = True, non_linearity: str = "LeakyReLU"):
+        super(ConvResBlock, self).__init__()
+        self.conv1 = ConvBlock(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding,
+                                 pooling_size=pooling_size, dropout=dropout, batch_normalization=batch_normalization, non_linearity=non_linearity)
+        if (stride > 1) or (pooling_size > 1) or (in_channels != out_channels):
+            # TODO this is how resnet downsamples, could also pool instead
+            self.downsample = nn.Sequential(
+                nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride*pooling_size, padding=0),
+                nn.BatchNorm1d(out_channels),
+            )
+        else:
+            self.downsample = None
+        self.conv2 = ConvBlock(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, stride=1, padding=padding,
+                                 pooling_size=1, dropout=dropout, batch_normalization=batch_normalization, non_linearity=None)
+        self.act2 = get_activation(non_linearity)
+
+    def forward(self, x):
+        identity = x
+        out = self.conv1(x)
+        out = self.conv2(out)
+        if self.downsample is not None:
+            identity = self.downsample(x)
+        # skip connection
+        out += identity
+        out = self.act2(out)
+
+        return out
 
 
 class DenseBlock(nn.Module):
@@ -92,5 +120,7 @@ def get_activation(name):
         return nn.Tanh()
     elif name == "sigmoid":
         return nn.Sigmoid()
+    elif name is None:
+        return nn.Identity()
     else:
         raise NameError(f"activation {name} not defined")

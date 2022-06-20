@@ -3,6 +3,7 @@
 
 import os
 import shutil
+from ast import literal_eval
 
 import wandb
 
@@ -15,7 +16,20 @@ import numpy as np
 
 import torch
 
-from utils import metrics
+# sector 11 looks dodgy, sector 16 empty
+
+TRAIN_SECTORS_DEBUG = [10]
+TRAIN_SECTORS_STANDARD = [10,11,12,13,14,15,16,17,18,19,20]
+TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+
+# keep validation and test sets the same
+VAL_SECTORS_DEBUG = [12]
+VAL_SECTORS_STANDARD = [30,31,32,33,34,35]
+VAL_SECTORS_FULL = [30,31,32,33,34,35]
+
+TEST_SECTORS_DEBUG = [14]
+TEST_SECTORS_STANDARD = [36,37,38]
+TEST_SECTORS_FULL = [36,37,38]
 
 
 class AverageMeter(object):
@@ -52,7 +66,7 @@ def load_checkpoint(model, optimizer, device, checkpoint_file: str):
     print(f"Loaded {checkpoint_file}, "
           f"trained to epoch {checkpoint['epoch']+1} with best loss {checkpoint['best_loss']}")
 
-    return model, optimizer
+    return model, optimizer, checkpoint["epoch"]+1, checkpoint["best_loss"]
 
 
 def save_checkpoint(checkpoint_dict: dict, is_best: bool):
@@ -75,7 +89,28 @@ def save_checkpoint(checkpoint_dict: dict, is_best: bool):
         wandb.save(best_file, policy="live")    # save to wandb
 
 
-def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_light_curve.png"):
+def bce_loss_numpy(preds, labels, reduction="none", eps=1e-7):
+    """Computes the binary cross-entropy loss between predictions and labels.
+    Params:
+    - preds (np.array): predictions
+    - labels (np.array): labels
+    - reduction (str): reduction type
+    - eps (float): small number to avoid log(0)
+    Returns:
+    - loss (float): binary cross-entropy loss
+    """
+    preds = np.clip(preds, eps, 1 - eps)
+    if reduction == "none":
+        return -labels * np.log(preds) - (1 - labels) * np.log(1 - preds)
+    elif reduction == "mean":
+        return -np.mean(labels * np.log(preds) + (1 - labels) * np.log(1 - preds))
+    elif reduction == "sum":
+        return -np.sum(labels * np.log(preds) + (1 - labels) * np.log(1 - preds))
+    else:
+        raise ValueError("reduction must be 'none', 'mean', or 'sum'")
+
+
+def plot_lc(x, save_path=None):
     """Plot light curve for debugging
     Params:
     - x (np.array): light curve
@@ -118,6 +153,7 @@ def plot_lc(x, save_path="/mnt/zfsusers/shreshth/pht_project/data/examples/test_
     ## save the image
     if save_path is not None:
         plt.savefig(save_path, dpi=300, facecolor=fig.get_facecolor())
+        print(f"Saved light curve to {save_path}")
 
     return fig, ax
 
@@ -182,13 +218,18 @@ def save_examples(results, step):
         wandb.log({f"worst_preds_{i}": wandb.Image(fig)}, step=step)
 
     # losses
-    bce_losses = metrics.bce_loss_numpy(probs, targets)
+    bce_losses = bce_loss_numpy(probs, targets)
     # log results to wandb to be plotted in the dashboard (without flux)
-    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, "class": results["classes"], "tic": results["tics"], "sec": results["secs"], "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"], "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"]})
+    df = pd.DataFrame({"bce_loss": bce_losses, "prob": probs, "target": targets, 
+                    "class": results["classes"], "tic": results["tics"], "sec": results["secs"], 
+                    "toi": results["tois"], "tce": results["tces"], "ctc": results["ctcs"], "ctoi": results["ctois"],
+                    "tic_inj": results["tic_injs"], "snr": results["snrs"], "duration": results["durations"], "period": results["periods"], "depth": results["depths"],
+                    "eb_prim_depth": results["eb_prim_depths"], "eb_sec_depth": results["eb_sec_depths"], "eb_period": results["eb_periods"],
+                    "tic_noise": results["tic_noises"]})
 
-    wandb.log({"val_results": wandb.Table(dataframe=df),
-                "roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
-                "pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))},
+    wandb.log({"val/results": wandb.Table(dataframe=df),
+                "val/roc": wandb.plot.roc_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1)),
+                "val/pr": wandb.plot.pr_curve(np.array(results["targets_bin"], dtype=int), np.stack((1-probs,probs),axis=1))},
                 step=step)
 
 
@@ -204,3 +245,73 @@ def _set_title(results, idx, ax):
     else:
         # this is neither
         ax.set_title(f'tic: {results["tics"][idx]} sec: {results["secs"][idx]} prob: {results["probs"][idx]}, target: {results["targets"][idx]}')
+
+
+def read_lc_csv(lc_file):
+    """Read LC flux from preprocessed csv
+    Params:
+    - lc_file (str): path to lc_file
+    Returns:
+    - x (dict): dictionary with keys:
+        - flux (np.array): light curve
+        - tic (int): TIC
+        - sec (int): sector
+        - cam (int): camera
+        - chi (int): chi
+        - tessmag (float): TESS magnitude
+        - teff (float): effective temperature
+        - srad (float): stellar radius
+        - binfac (float): binning factor
+        - cdpp(05,1,2) (float): CDPP at 0.5, 1, 2 hour time scales
+    """
+    try:
+        # read the csv file
+        df = pd.read_csv(lc_file)
+        # get the flux
+        x = {}
+        x["flux"] = df["flux"].values
+
+        # parse the file name
+        file_name = lc_file.split("/")[-1]
+        params = file_name.split("_")
+        for i, param in enumerate(params):
+            if i == len(params) - 1:
+                # remove .csv
+                x[param.split("-")[0]] = literal_eval(param.split("-")[1][:-4])
+            else:
+                x[param.split("-")[0]] = literal_eval(param.split("-")[1])
+            # convert None to -1
+            x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
+    except:
+        # print("failed to read file: ", lc_file)
+        x = {"flux": None}
+    return x
+
+
+def get_sectors(data_split):
+    """
+    Params:
+    - data_split (str): data split to use (train_debug, val_standard etc.)
+    Returns:
+    - sectors (list): list of sectors
+    """
+    if data_split == "train_standard":
+        return TRAIN_SECTORS_STANDARD
+    elif data_split == "val_standard":
+        return VAL_SECTORS_STANDARD
+    elif data_split == "test_standard":
+        return TEST_SECTORS_STANDARD
+    if data_split == "train_full":
+        return TRAIN_SECTORS_FULL
+    elif data_split == "val_full":
+        return VAL_SECTORS_FULL
+    elif data_split == "test_full":
+        return TEST_SECTORS_FULL
+    elif data_split == "train_debug":
+        return TRAIN_SECTORS_DEBUG
+    elif data_split == "val_debug":
+        return VAL_SECTORS_DEBUG
+    elif data_split == "test_debug":
+        return TEST_SECTORS_DEBUG
+    else:
+        raise ValueError(f"Invalid data split {data_split}")

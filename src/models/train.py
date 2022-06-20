@@ -84,11 +84,11 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
             # unpack batch from dataloader
             x, y = batch
             flux = x["flux"]
+            
             flux = flux.to(device)
             y = y.to(device)
             logits = model(flux)
             prob = torch.sigmoid(logits)
-            # preds = np.where(probs > 0.5, 1, 0)
             pred = (prob > 0.5).float()
             y_bin = (y > 0.5).float()
 
@@ -138,6 +138,11 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
                     results["eb_sec_depths"] += x["eb_sec_depth"].tolist()
                     results["eb_periods"] += x["eb_period"].tolist()
                     results["classes"] += x["class"]
+                    results["tois"] += x["toi"].tolist()
+                    results["ctcs"] += x["ctc"].tolist()
+                    results["ctois"] += x["ctoi"].tolist()
+                    results["tces"] += x["tce"].tolist()
+                    results["tic_noises"] += x["tic_noise"].tolist()
                     # save flux only if plotting
                     if save_examples != -1:
                         results["fluxs"] += flux.tolist()
@@ -146,7 +151,8 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             # profiler.step()
 
-    # compute metrics manually, handling zero division. TODO this could be done in a simpler way
+    # compute metrics manually, handling zero division. 
+    # TODO this could be done in a simpler way
     acc = np.divide((true_positives + true_negatives), total,  out=np.zeros_like((true_positives + true_negatives)), where=total!=0)
     prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
     rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)
@@ -241,6 +247,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                     "val/prec": val_prec,
                     "val/rec": val_rec,
                     "val/loss": val_loss,
+                    "epoch": epoch,
                 })
 
             # save checkpoint
@@ -266,13 +273,15 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
     except KeyboardInterrupt:
         pass
 
-    return model
+    return model, epoch + 1
 
 
 def init_model(args):
     """Initialize model
     """
-    if args.model == "dense":
+    model_name = f"{args.model}_{args.bin_factor}" if args.model != "dense" else args.model
+
+    if model_name == "dense":
         model = nets.SimpleNetwork(
             input_dim=int(SHORTEST_LC / args.bin_factor),
             hid_dims=args.hid_dims,
@@ -280,19 +289,30 @@ def init_model(args):
             non_linearity=args.activation,
             dropout=args.dropout
         )
-    elif args.model == "ramjet":
-        if args.bin_factor == 3:
-            model = nets.RamjetBin3(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
-        elif args.bin_factor == 7:
-            model = nets.RamjetBin7(
-                input_dim=int(SHORTEST_LC / args.bin_factor),
-                output_dim=1,
-                dropout=0.1
-            )
+    elif model_name == "ramjet_3":
+        model = nets.RamjetBin3(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "ramjet_7":
+        model = nets.RamjetBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_7":
+        model = nets.ResNetBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_big_7":
+        model = nets.ResNetBigBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
     else:
         raise NameError(f"Unknown model {args.model}")
     

@@ -4,7 +4,6 @@ Utility functions and classes for data manipulation.
 
 import os
 import argparse
-from ast import literal_eval
 import time
 from glob import glob
 import functools
@@ -22,24 +21,10 @@ from astropy.table import Table
 
 if __name__ == "__main__":
     import transforms
-    from utils import plot_lc
+    from utils import plot_lc, get_sectors, read_lc_csv
 else:
     from utils import transforms
-    from utils.utils import plot_lc
-
-# sector 11 looks dodgy, sector 16 empty
-
-TRAIN_SECTORS_DEBUG = [10]
-# TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20]
-TRAIN_SECTORS_FULL = [10,12,13,14,15,17]
-
-VAL_SECTORS_DEBUG = [12]
-VAL_SECTORS_FULL = [21,22,23]
-# VAL_SECTORS_FULL = [18,19,20]
-
-TEST_SECTORS_DEBUG = [14]
-# TEST_SECTORS_FULL = [37]
-TEST_SECTORS_FULL = [24]
+    from utils.utils import plot_lc, get_sectors, read_lc_csv
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -53,10 +38,11 @@ class LCData(torch.utils.data.Dataset):
     def __init__(
         self,
         data_root_path="/mnt/zfsusers/shreshth/pht_project/data",
-        data_split="train",
+        data_split="train_debug",
         bin_factor=7,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        lc_noise_prob=0.0,
         min_snr=0.5,
         single_transit_only=True,
         transform=None,
@@ -67,10 +53,11 @@ class LCData(torch.utils.data.Dataset):
         """
         Params:
         - data_root_path (str): path to data directory 
-        - data_split (str): which data split to load (train(_debug)/val(_debug)/test(_debug))
+        - data_split (str): which data split to load
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - lc_noise_prob (float): proportion of data to be noisy via injecting other lcs
         - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
         - transform (callable): transform to apply to the data in getitem
@@ -85,6 +72,7 @@ class LCData(torch.utils.data.Dataset):
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
+        self.lc_noise_prob = lc_noise_prob
         self.min_snr = min_snr
         self.single_transit_only = single_transit_only
         self.transform = transform
@@ -92,7 +80,7 @@ class LCData(torch.utils.data.Dataset):
         self.preprocessing = preprocessing
         self.plot_examples = plot_examples
         
-        self.sectors = self._get_sectors()
+        self.sectors = get_sectors(self.data_split)
 
         ####### LC data
 
@@ -119,7 +107,9 @@ class LCData(torch.utils.data.Dataset):
         # check how many non-zero labels
         print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
         print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
-       
+        # zero labels
+        self.zero_tics = self.labels_df[self.labels_df["maxdb"] == 0]["TIC_ID"].tolist()
+
         ##### planetary transits 
         if self.synthetic_prob > 0.0:
             self.pl_data = self._get_pl_data()
@@ -134,17 +124,16 @@ class LCData(torch.utils.data.Dataset):
         self.cache = {}
         if self.store_cache:
             print("filling cache")
+            self.filling_cache = True
             with trange(len(self)) as t:
                 for i in range(len(self)):
                     self.__getitem__(i)
                     t.update()
+        self.filling_cache = False
 
     def __len__(self):
         return len(self.lc_file_list)
 
-
-    # maxsize is the max number of samples to cache - each LC is ~2MB. If you have a lot of memory, you can increase this
-    # @functools.lru_cache(maxsize=1000)  # Cache loaded data
     def __getitem__(self, idx):
         """Returns:
         - x (dict): dictionary with keys:
@@ -165,11 +154,13 @@ class LCData(torch.utils.data.Dataset):
         """
         # check if we have this data cached
         if idx in self.cache:
-            (x, y) = self.cache[idx]
+            (x_cache, y_cache) = self.cache[idx]
+            x = deepcopy(x_cache)
+            y = deepcopy(y_cache)
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
-            x = _read_lc_csv(lc_file)
+            x = read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
             if x["flux"] is None:
                 if self.store_cache:
@@ -185,15 +176,17 @@ class LCData(torch.utils.data.Dataset):
                 if self.plot_examples:
                     plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_preprocessed_{idx}.png")
 
-            # get label for this lc file (if exists), match sector 
-            y = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"]), "maxdb"].values
-            if len(y) == 1:
-                y = torch.tensor(y[0], dtype=torch.float)
-            elif len(y) > 1:
-                y = None
+            # get labels for this lc file (if exists), match sector 
+            y_row = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"])]
+            if len(y_row) == 1:
+                y = torch.tensor(y_row["maxdb"].values[0], dtype=torch.float)
+                x["toi"] = y_row["TOI"].values[0]
+                x["tce"] = y_row["TCE"].values[0]
+                x["ctc"] = y_row["PHT_ctc"].values[0]
+                x["ctoi"] = y_row["PHT_ctoi"].values[0]
             else:
                 y = None
-
+            
             if self.store_cache:
                 # add to cache 
                 self.cache[idx] = (deepcopy(x), deepcopy(y))
@@ -222,8 +215,16 @@ class LCData(torch.utils.data.Dataset):
         if x["flux"] is None:
             return x, None
 
-        if self.plot_examples:
+        if (self.plot_examples) and (x["tic_inj"] != -1):
             plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
+
+        # add noise from another lc. Don't do this when filling cache
+        if (not self.filling_cache) and (np.random.rand() < self.lc_noise_prob):
+            x = self._add_lc_noise(x)
+            if self.plot_examples:
+                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_noised_with_{x['tic_noise']}_{idx}.png")
+        else:
+            x["tic_noise"] = -1
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
@@ -232,26 +233,6 @@ class LCData(torch.utils.data.Dataset):
 
         return x, y
 
-
-    def _get_sectors(self):
-        """
-        Returns:
-        - sectors (list): list of sectors
-        """
-        if self.data_split == "train":
-            return TRAIN_SECTORS_FULL
-        elif self.data_split == "val":
-            return VAL_SECTORS_FULL
-        elif self.data_split == "test":
-            return TEST_SECTORS_FULL
-        elif self.data_split == "train_debug":
-            return TRAIN_SECTORS_DEBUG
-        elif self.data_split == "val_debug":
-            return VAL_SECTORS_DEBUG
-        elif self.data_split == "test_debug":
-            return TEST_SECTORS_DEBUG
-        else:
-            raise ValueError(f"Invalid data split {self.data_split}")
 
     def _get_eb_data(self):
         """Loads the eclipsing binary data
@@ -375,17 +356,17 @@ class LCData(torch.utils.data.Dataset):
         """Checks if a planet flux should be included in this data for simulation.
         Currently just uses the tic_id to select 1/4th of the available data for training/val.
         """
-        if self.data_split in ["train", "train_debug"]:
+        if "train" in self.data_split:
             if tic_id % 4 == 0:
                 return True
             else:
                 return False
-        elif self.data_split in ["val", "val_debug"]:
+        elif "val" in self.data_split:
             if tic_id % 4 == 1:
                 return True
             else:
                 return False
-        elif self.data_split in ["test", "test_debug"]:
+        elif "test" in self.data_split:
             if (tic_id % 4 == 2) or (tic_id % 4 == 3):
                 return True
             else:
@@ -415,7 +396,7 @@ class LCData(torch.utils.data.Dataset):
             # if the SNR is lower than our threshhold, skip this target entirely. 
             # min_snr = 0.5 in the argparse - ask Nora.
             # max_snr = 15.0 in the argparse - ask Nora.
-            if (pl_snr < self.min_snr) or (pl_snr > 25):   
+            if (pl_snr < self.min_snr) or (pl_snr > 15):   
             # if pl_snr < self.min_snr:
                 bad_snr = True
             else:
@@ -423,7 +404,7 @@ class LCData(torch.utils.data.Dataset):
             if bad_snr:
                 num_bad += 1
                 # print("bad SNR: ", pl_snr, " for TIC: ", x["tic"], " in sector: ", x["sec"], "and planet tic id:", pl_inj["tic_id"])
-                if num_bad > 5:
+                if num_bad > 10:
                     # print("too many bad SNRs. Skipping this target.")
                     x["flux"] = None
                     return x
@@ -488,6 +469,51 @@ class LCData(torch.utils.data.Dataset):
 
         return base_flux
 
+    def _add_lc_noise(self, x):
+        """Add noise to the light curve.
+        Params:
+        - x (dict): light curve to add noise to
+        Returns:
+        - x (dict): light curve with noise added (added the key tic_noise)
+        """
+        base_flux = x["flux"]
+        injected = False
+        while not injected:
+            i = np.random.randint(len(self))
+            # load the flux
+            if i in self.cache:
+                x_noise, _ = self.cache[i]
+            else:
+                # get lc file
+                noise_file = self.lc_file_list[i]
+                x_noise = read_lc_csv(noise_file)
+            inj_flux = x_noise["flux"]
+            tic_id = x_noise.get("tic")
+            # check if a non-transit tic id is in the injected flux
+            if (inj_flux is not None) and (tic_id in self.zero_tics):
+                # normalise flux
+                median = np.nanmedian(inj_flux)
+                if np.isclose(median, 0):
+                    injected = False
+                else:
+                    inj_flux /= np.abs(median)
+                    # if median is negative, put back to 1
+                    if median < 0:
+                        inj_flux += 2
+                    # make same length as x
+                    if len(inj_flux) >= len(base_flux):
+                        inj_flux = inj_flux[:len(base_flux)-1]
+                    # fill in nans
+                    inj_flux = np.nan_to_num(inj_flux, nan=1.0)
+                    # add noise to the base lc
+                    start_idx = np.random.randint(0, len(base_flux)-len(inj_flux))
+                    base_flux[start_idx:start_idx+len(inj_flux)] = base_flux[start_idx:start_idx+len(inj_flux)] * inj_flux
+
+                    x["flux"] = base_flux
+                    x["tic_noise"] = tic_id
+                    injected = True
+        return x
+
 ##### UTILS
 
 def collate_fn(batch):
@@ -497,47 +523,6 @@ def collate_fn(batch):
     batch = [(x,y) for (x,y) in batch if x["flux"] is not None]   # filter on missing flux 
     batch = [(x,y) for (x,y) in batch if y is not None]           # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
-
-
-def _read_lc_csv(lc_file):
-    """Read LC flux from preprocessed csv
-    Params:
-    - lc_file (str): path to lc_file
-    Returns:
-    - x (dict): dictionary with keys:
-        - flux (np.array): light curve
-        - tic (int): TIC
-        - sec (int): sector
-        - cam (int): camera
-        - chi (int): chi
-        - tessmag (float): TESS magnitude
-        - teff (float): effective temperature
-        - srad (float): stellar radius
-        - binfac (float): binning factor
-        - cdpp(05,1,2) (float): CDPP at 0.5, 1, 2 hour time scales
-    """
-    try:
-        # read the csv file
-        df = pd.read_csv(lc_file)
-        # get the flux
-        x = {}
-        x["flux"] = df["flux"].values
-
-        # parse the file name
-        file_name = lc_file.split("/")[-1]
-        params = file_name.split("_")
-        for i, param in enumerate(params):
-            if i == len(params) - 1:
-                # remove .csv
-                x[param.split("-")[0]] = literal_eval(param.split("-")[1][:-4])
-            else:
-                x[param.split("-")[0]] = literal_eval(param.split("-")[1])
-            # convert None to -1
-            x[param.split("-")[0]] = -1 if x[param.split("-")[0]] is None else x[param.split("-")[0]]
-    except:
-        # print("failed to read file: ", lc_file)
-        x = {"flux": None}
-    return x
 
         
 def get_data_loaders(args):
@@ -558,11 +543,10 @@ def get_data_loaders(args):
     rolling_window = args.rolling_window
     noise_std = args.noise_std
     min_snr = args.min_snr
-    # max_lc_length = args.max_lc_length
     max_lc_length = int(SHORTEST_LC / bin_factor)
     multi_transit = args.multi_transit
     pin_memory = True
-    debug = args.debug
+    data_split = args.data_split
     plot_examples = args.plot_examples
 
     # preprocessing = torchvision.transforms.Compose([
@@ -573,11 +557,12 @@ def get_data_loaders(args):
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
+        # transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.NormaliseFlux(),
-        transforms.MirrorFlip(prob=aug_prob),
+        transforms.MedianAtZero(),
+        # transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
         transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
-        transforms.GaussianNoise(prob=aug_prob, window=rolling_window, std=noise_std),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -586,6 +571,7 @@ def get_data_loaders(args):
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.MedianAtZero(),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -593,6 +579,7 @@ def get_data_loaders(args):
 
     test_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
+        transforms.MedianAtZero(),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -602,10 +589,11 @@ def get_data_loaders(args):
     # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_set = LCData(
         data_root_path=data_root_path,
-        data_split="train_debug" if debug else "train",
+        data_split=f"train_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        lc_noise_prob=1.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
@@ -617,10 +605,11 @@ def get_data_loaders(args):
     # same amount of synthetics in val set as in train set
     val_set = LCData(
         data_root_path=data_root_path,
-        data_split="val_debug" if debug else "val",
+        data_split=f"val_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=val_transform,
@@ -632,10 +621,11 @@ def get_data_loaders(args):
     # no synthetics in test set
     test_set = LCData(
         data_root_path=data_root_path,
-        data_split="test_debug" if debug else "test",
+        data_split=f"test_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,       # irrelevant for test set
         transform=test_transform,
@@ -670,29 +660,9 @@ def get_data_loaders(args):
     return train_dataloader, val_dataloader, test_dataloader
 
 
-if __name__ == "__main__":
-
-    # parse data args only
-    ap = argparse.ArgumentParser(description="test dataloader")
-    ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
-    ap.add_argument("--debug", action="store_true")
-    ap.add_argument("--bin-factor", type=int, default=7)
-    ap.add_argument("--synthetic-prob", type=float, default=1.0)
-    ap.add_argument("--eb-prob", type=float, default=0.0)
-    ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
-    ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
-    ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
-    ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
-    ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
-    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
-    ap.add_argument("--noise-std", type=float, default=0.05, help="Standard deviation of noise added to light curve for training.")
-    ap.add_argument("--batch-size", type=int, default=8)
-    ap.add_argument("--num-workers", type=int, default=0)
-    ap.add_argument("--seed", type=int, default=123)
-    ap.add_argument("--multi-transit", action="store_true")
-    ap.add_argument("--no-cache", action="store_true")
-    ap.add_argument("--plot-examples", action="store_true")
-    args = ap.parse_args()
+def test_dataloader(args):
+    """Module Test
+    """
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
@@ -716,3 +686,28 @@ if __name__ == "__main__":
                 break
             t.update()
     
+
+if __name__ == "__main__":
+    # parse data args only
+    ap = argparse.ArgumentParser(description="test dataloader")
+    ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
+    ap.add_argument("--data-split", type=str, default="debug")
+    ap.add_argument("--bin-factor", type=int, default=7)
+    ap.add_argument("--synthetic-prob", type=float, default=1.0)
+    ap.add_argument("--eb-prob", type=float, default=0.0)
+    ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
+    ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
+    ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
+    ap.add_argument("--outlier-std", type=float, default=3.0, help="Remove points more than this number of rolling standard deviations from the rolling mean.")
+    ap.add_argument("--rolling-window", type=int, default=100, help="Window size for rolling mean and standard deviation.")
+    ap.add_argument("--min-snr", type=float, default=1.0, help="Min signal to noise ratio for planet injection.")
+    ap.add_argument("--noise-std", type=float, default=0.1, help="Standard deviation of noise added to light curve for training.")
+    ap.add_argument("--batch-size", type=int, default=8)
+    ap.add_argument("--num-workers", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=123)
+    ap.add_argument("--multi-transit", action="store_true")
+    ap.add_argument("--no-cache", action="store_true")
+    ap.add_argument("--plot-examples", action="store_true")
+    args = ap.parse_args()
+
+    test_dataloader()
