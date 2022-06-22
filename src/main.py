@@ -120,11 +120,21 @@ def main(args):
     val_probs = np.array(val_results["probs"])
     val_targets = np.array(val_results["targets"])
     val_bce_losses = bce_loss_numpy(val_probs, val_targets)
-    val_df = pd.DataFrame({"bce_loss": val_bce_losses, "prob": val_probs, "target": val_targets, "class": val_results["classes"], "tic": val_results["tics"], "sec": val_results["secs"], "tic_inj": val_results["tic_injs"], "snr": val_results["snrs"], "duration": val_results["durations"], "period": val_results["periods"], "depth": val_results["depths"], "eb_prim_depth": val_results["eb_prim_depths"], "eb_sec_depth": val_results["eb_sec_depths"], "eb_period": val_results["eb_periods"]})
+    val_df = pd.DataFrame({"bce_loss": val_bce_losses, "prob": val_probs, "target": val_targets, 
+                    "class": val_results["classes"], "tic": val_results["tics"], "sec": val_results["secs"], 
+                    "toi": val_results["tois"], "tce": val_results["tces"], "ctc": val_results["ctcs"], "ctoi": val_results["ctois"],
+                    "tic_inj": val_results["tic_injs"], "snr": val_results["snrs"], "duration": val_results["durations"], "period": val_results["periods"], "depth": val_results["depths"],
+                    "eb_prim_depth": val_results["eb_prim_depths"], "eb_sec_depth": val_results["eb_sec_depths"], "eb_period": val_results["eb_periods"],
+                    "tic_noise": val_results["tic_noises"]})
     test_probs = np.array(test_results["probs"])
     test_targets = np.array(test_results["targets"])
     test_bce_losses = bce_loss_numpy(test_probs, test_targets)
-    test_df = pd.DataFrame({"bce_loss": test_bce_losses, "prob": test_probs, "target": test_targets, "class": test_results["classes"], "tic": test_results["tics"], "sec": test_results["secs"], "tic_inj": test_results["tic_injs"], "snr": test_results["snrs"], "duration": test_results["durations"], "period": test_results["periods"], "depth": test_results["depths"], "eb_prim_depth": test_results["eb_prim_depths"], "eb_sec_depth": test_results["eb_sec_depths"], "eb_period": test_results["eb_periods"]})
+    val_df = pd.DataFrame({"bce_loss": test_bce_losses, "prob": test_probs, "target": test_targets, 
+                    "class": test_results["classes"], "tic": test_results["tics"], "sec": test_results["secs"], 
+                    "toi": test_results["tois"], "tce": test_results["tces"], "ctc": test_results["ctcs"], "ctoi": test_results["ctois"],
+                    "tic_inj": test_results["tic_injs"], "snr": test_results["snrs"], "duration": test_results["durations"], "period": test_results["periods"], "depth": test_results["depths"],
+                    "eb_prim_depth": test_results["eb_prim_depths"], "eb_sec_depth": test_results["eb_sec_depths"], "eb_period": test_results["eb_periods"],
+                    "tic_noise": test_results["tic_noises"]})
     wandb.log({
         "train_best/loss": train_loss,
         "train_best/acc": train_acc,

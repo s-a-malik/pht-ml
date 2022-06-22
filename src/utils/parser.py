@@ -119,7 +119,7 @@ def parse_args():
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",
-                        help="loss function")
+                        help="loss function (BCE, BCE_weighted")
     parser.add_argument("--disable-cuda",
                         action="store_true",
                         help="don't use GPU")

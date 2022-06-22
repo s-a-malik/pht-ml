@@ -246,11 +246,11 @@ class ResNetBigKernelBin7(nn.Module):
         self.dropout = dropout
 
         # two large kernsl to begin with with no downsampling
-        self.block0 = ConvResBlock(in_channels=1, out_channels=32, kernel_size=125, padding="same", batch_normalization=False, dropout=0)
-        self.block0a = ConvResBlock(in_channels=32, out_channels=32, kernel_size=63, padding="same", dropout=self.dropout)
+        self.block0 = ConvResBlock(in_channels=1, out_channels=64, kernel_size=125, padding="same", batch_normalization=False, dropout=0)
+        self.block0a = ConvResBlock(in_channels=64, out_channels=64, kernel_size=63, padding="same", dropout=self.dropout)
         # downsample from now
-        self.block1 = ConvResBlock(in_channels=32, out_channels=32, kernel_size=31, pooling_size=2, padding="same", dropout=self.dropout)
-        self.block2 = ConvResBlock(in_channels=32, out_channels=64, kernel_size=31, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block1 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=31, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=31, pooling_size=2, padding="same", dropout=self.dropout)
         self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=15, pooling_size=2, padding="same", dropout=self.dropout)
         self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
         self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=5, pooling_size=2, padding="same", dropout=self.dropout)
@@ -344,16 +344,15 @@ class ResNetFullConvBin7(nn.Module):
 
 class WaveNetBin7(nn.Module):
     """c.f. https://github.com/ButterscotchV/Wavenet-PyTorch/blob/master/wavenet/models.py
-    TODO: no dropout?
     """
     def __init__(self, 
                  input_dim,
                  num_channels=1,
                  num_classes=1,
                  num_blocks=2,
-                 num_layers=10,
+                 num_layers=8,
                  num_hidden=64,
-                 kernel_size=3,
+                 kernel_size=2,
                  dropout=0.1):
         super(WaveNetBin7, self).__init__()
         self.input_dim = input_dim
@@ -393,16 +392,21 @@ class WaveNetBin7(nn.Module):
         self.hs = nn.ModuleList(hs)
         self.batch_norms = nn.ModuleList(batch_norms)
 
-        # downsample and classify
-        self.out_conv_1 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.out_conv_2 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.out_conv_3 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.out_conv_4 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
-        self.out_conv_5 = ConvResBlock(in_channels=num_hidden, out_channels=num_hidden, kernel_size=3, pooling_size=2, dropout=self.dropout)
-       
-        # dense layers
-        self.dense = DenseBlock(input_dim=num_hidden*47, output_dim=20, dropout=0, batch_normalization=False)
-        self.h_class = nn.Linear(20, num_classes)
+        # downsample from now
+        self.block1 = ConvResBlock(in_channels=num_hidden, out_channels=32, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=32, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block7 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block8 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block9 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block10 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block11 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+
+        self.linear_out = nn.Linear(128, self.num_classes)
+
 
     def forward(self, x):
         x = x.view(x.shape[0], 1, x.shape[-1])
@@ -412,16 +416,23 @@ class WaveNetBin7(nn.Module):
             x = batch_norm(x)
             skips.append(skip)
         x = reduce((lambda a, b : torch.add(a, b)), skips)
+        # classifier
+        x = self.block1(x)             # (B, 128, 1250)
+        x = self.block2(x)             # (B, 128, 625)
+        x = self.block3(x)             # (B, 128, 312)
+        x = self.block4(x)              # (B, 128, 156)
+        x = self.block5(x)              # (B, 128, 80)
+        x = self.block6(x)              # (B, 128, 40)
+        x = self.block6(x)              # (B, 128, 20)
+        x = self.block7(x)              # (B, 128, 10)
+        x = self.block8(x)              # (B, 128, 5)
+        x = self.block9(x)              # (B, 128, 3)
+        x = self.block10(x)             # (B, 128, 2)
+        x = self.block11(x)             # (B, 128, 1)
+        x = x.view(x.shape[0], -1)      # (B, 128)
+        outputs = self.linear_out(x)    # (B, 1)
 
-        x = self.out_conv_1(x)
-        x = self.out_conv_2(x)
-        x = self.out_conv_3(x)
-        x = self.out_conv_4(x)
-        x = self.out_conv_5(x)  
-
-        x = x.view(x.shape[0], -1)
-        x = self.dense(x)
-        return self.h_class(x)
+        return outputs
 
 
 class Wav2Vec2(nn.Module):
