@@ -34,6 +34,10 @@ def parse_args():
                         type=float,
                         default=0.0,
                         help="Augment with eclipsing binary data, proportion of data to be EB injected.")
+    parser.add_argument("--lc-noise-prob",
+                        type=float,
+                        default=0.1,
+                        help="Augment with noise in light curves") 
     parser.add_argument("--num-workers",
                         type=int,
                         default=0,
@@ -119,7 +123,7 @@ def parse_args():
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",
-                        help="loss function (BCE, BCE_weighted")
+                        help="loss function (BCE, BCE_weighted, MSE")
     parser.add_argument("--disable-cuda",
                         action="store_true",
                         help="don't use GPU")

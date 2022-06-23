@@ -533,6 +533,7 @@ def get_data_loaders(args):
     bin_factor = args.bin_factor
     synthetic_prob = args.synthetic_prob
     eb_prob = args.eb_prob
+    lc_noise_prob = args.lc_noise_prob
     batch_size = args.batch_size
     num_workers = args.num_workers
     cache = not args.no_cache
@@ -593,7 +594,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
-        lc_noise_prob=1.0,
+        lc_noise_prob=lc_noise_prob,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
