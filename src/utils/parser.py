@@ -75,7 +75,7 @@ def parse_args():
                         help="Multiple of rolling standard deviation of noise added to light curve for training.")
     parser.add_argument("--min-snr",
                         type=float,
-                        default=0.5,
+                        default=0.0,
                         help="Min signal to noise ratio for planet injection.")
     parser.add_argument("--multi-transit",
                         action="store_true",
@@ -92,7 +92,7 @@ def parse_args():
     parser.add_argument("--model",
                         type=str,
                         default="ramjet",
-                        help="Model type: (ramjet, dense, resnet).")
+                        help="Model type: (ramjet, dense, resnet, resnet_big, resnet_big_kernel, resnet_full_conv, wavenet).")
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,
@@ -118,7 +118,7 @@ def parse_args():
     # training config
     parser.add_argument("--optimizer",
                         type=str,
-                        default="adamw",
+                        default="adam",
                         help="optimizer (adam, sgd, adamw)")
     parser.add_argument("--loss",
                         type=str,

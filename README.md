@@ -21,7 +21,8 @@ All hyperparameters are controlled via command line arguments.
 
 - [ ] make proper enumerations for each of the possible configs
 - [ ] make more general for multi vs single injected transits
-- [ ] automate analysis of real planet data and use as additional loss for training?
+- [ ] automate analysis of real planet data and use as additional loss for training
+- [ ] when trimming light curves to same length, remove the Nans (shorten) instead of the start and end
 
 ## Related Papers and Repos
 

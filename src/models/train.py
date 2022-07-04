@@ -94,6 +94,14 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
+            # check if reduction is none, if so, weight loss by snr and tois
+            # if criterion.reduction == "none":
+            #     # weight by some function of snr and toi
+            #     snr = x["snr"]
+            #     tois = x["toi"]
+            #     weighting = utils.compute_sample_weighting(snr, tois)
+               
+
             avg_loss.update(loss.data.cpu().item(), y.size(0))     
             
             if task == "train":
@@ -359,6 +367,8 @@ def init_optim(args, model):
     
     if args.loss == "BCE":
         criterion = torch.nn.BCEWithLogitsLoss()
+    elif args.loss == "BCE_weighted":
+        criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
     elif args.loss == "MSE":
         criterion = torch.nn.MSELoss()
     else:

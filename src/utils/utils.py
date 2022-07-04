@@ -110,6 +110,27 @@ def bce_loss_numpy(preds, labels, reduction="none", eps=1e-7):
         raise ValueError("reduction must be 'none', 'mean', or 'sum'")
 
 
+def compute_sample_weighting(x):
+    """Computes loss weighting for a given batch
+    TODO Compute this in dataloader to save computation.
+    """
+    # normalise by batch size (equivalent to mean loss)
+
+    # default weight is 1
+    weights = torch.ones_like(x["snr"]) # might need to do requires grad
+
+    # weight the synthetics with low snr more
+    # weights = x["snr"] / x["snr"].sum()
+
+    # don't weight the negati
+
+    # weight the real known planets more
+    
+
+
+    return weights
+
+
 def plot_lc(x, save_path=None):
     """Plot light curve for debugging
     Params:

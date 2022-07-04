@@ -29,7 +29,6 @@ def main(args):
 
     # init wandb
     os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
-    # os.environ['WANDB_MODE'] = 'offline'
     # change artifact cache directory to scratch
     os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './')
     job_type = "eval" if args.evaluate else "train"
@@ -129,7 +128,7 @@ def main(args):
     test_probs = np.array(test_results["probs"])
     test_targets = np.array(test_results["targets"])
     test_bce_losses = bce_loss_numpy(test_probs, test_targets)
-    val_df = pd.DataFrame({"bce_loss": test_bce_losses, "prob": test_probs, "target": test_targets, 
+    test_df = pd.DataFrame({"bce_loss": test_bce_losses, "prob": test_probs, "target": test_targets, 
                     "class": test_results["classes"], "tic": test_results["tics"], "sec": test_results["secs"], 
                     "toi": test_results["tois"], "tce": test_results["tces"], "ctc": test_results["ctcs"], "ctoi": test_results["ctois"],
                     "tic_inj": test_results["tic_injs"], "snr": test_results["snrs"], "duration": test_results["durations"], "period": test_results["periods"], "depth": test_results["depths"],

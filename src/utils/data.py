@@ -558,12 +558,11 @@ def get_data_loaders(args):
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
-        # transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.NormaliseFlux(),
         transforms.MedianAtZero(),
-        # transforms.MirrorFlip(prob=aug_prob),
+        transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
+        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -586,8 +585,6 @@ def get_data_loaders(args):
         transforms.ToFloatTensor()
     ])
 
-
-    # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_set = LCData(
         data_root_path=data_root_path,
         data_split=f"train_{data_split}",
@@ -696,6 +693,7 @@ if __name__ == "__main__":
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
+    ap.add_argument("--lc-noise-prob", type=float, default=0.5)
     ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
     ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")
