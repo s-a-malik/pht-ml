@@ -31,7 +31,9 @@
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split full --model resnet_full_conv --experiment-name multi-final --batch-size 256 --multi-transit
 
 # evaluation of trained models
-#--checkpoint xxx --evaluate --no-cache
+#--checkpoint xxx --evaluate --no-cache --data-split all/full
 
-
-
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.1 --batch-size 256 --data-split all --model resnet_big --experiment-name no-synth-full --checkpoint 1v2ga229 --evaluate --no-cache
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-final --batch-size 256 --checkpoint 2ctsh0wx --evaluate --no-cache
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-final --batch-size 256 --checkpoint 3o4txpuz --evaluate --no-cache
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big_kernel --experiment-name resnet-big-kernel-final --batch-size 128 --checkpoint 3c43w4a8 --evaluate --no-cache

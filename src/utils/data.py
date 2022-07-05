@@ -21,13 +21,10 @@ from astropy.table import Table
 
 if __name__ == "__main__":
     import transforms
-    from utils import plot_lc, get_sectors, read_lc_csv
+    from utils import plot_lc, get_sectors, read_lc_csv, SHORTEST_LC
 else:
     from utils import transforms
-    from utils.utils import plot_lc, get_sectors, read_lc_csv
-
-SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
-# SHORTEST_LC = 18900 # binned 7 sector 10-14
+    from utils.utils import plot_lc, get_sectors, read_lc_csv, SHORTEST_LC
 
 #### DATASET CLASSES
 

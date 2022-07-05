@@ -106,7 +106,7 @@ def main(args):
                 data_loader=val_loader,
                 device=args.device,
                 task="test")
-        print(f"Validation loss: {val_loss:.4f}, accuracy: {val_acc:.4f}, f1: {val_f1:.4f}, precision: {val_prec:.4f}, recall: {val_rec:.4f}")
+        print(f"Validation loss: {val_loss:.4f}, accuracy: {val_acc:.4f}, f1: {val_f1:.4f}, precision: {val_prec:.4f}, recall: {val_rec:.4f}, AUC: {val_auc:.4f}")
         test_loss, test_acc, test_f1, test_prec, test_rec, test_auc, test_results = evaluate(
             model=model, 
             optimizer=optimizer,

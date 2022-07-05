@@ -118,7 +118,7 @@ def parse_args():
     # training config
     parser.add_argument("--optimizer",
                         type=str,
-                        default="adam",
+                        default="adamw",
                         help="optimizer (adam, sgd, adamw)")
     parser.add_argument("--loss",
                         type=str,
