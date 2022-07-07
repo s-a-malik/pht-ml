@@ -234,8 +234,64 @@ class ResNetBigBin7(nn.Module):
         return outputs
 
 
-class ResNetBigKernelBin7(nn.Module):
+class ResNetBigKernelDenseBin7(nn.Module):
     """1D CNN Architecture with residual connections, Big kernel size
+    """
+
+    def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
+        super(ResNetBigKernelDenseBin7, self).__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.dropout = dropout
+
+        # two large kernsl to begin with with no downsampling
+        self.block0 = ConvResBlock(in_channels=1, out_channels=64, kernel_size=65, padding="same", batch_normalization=False, dropout=0)
+        self.block0a = ConvResBlock(in_channels=64, out_channels=64, kernel_size=65, padding="same", dropout=self.dropout)
+        # downsample from now
+        self.block1 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=5, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block7 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block8 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block9 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block10 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        
+        self.block11 = DenseBlock(input_dim=128*3, output_dim=256, dropout=self.dropout)
+        self.block12 = DenseBlock(input_dim=256, output_dim=20, dropout=0, batch_normalization=False)
+
+        self.linear_out = nn.Linear(20, self.output_dim)
+
+    
+    def forward(self, x):
+        # x: (B, LC_LEN)
+        x = x.view(x.shape[0], 1, x.shape[-1])  # input shape: (B, 1, 2500)
+        x = self.block0(x)             
+        x = self.block0a(x)            
+        x = self.block1(x)             
+        x = self.block2(x)             
+        x = self.block3(x)             
+        x = self.block4(x)              
+        x = self.block5(x)              # (B, 128, 320)
+        x = self.block6(x)              # (B, 128, 160)
+        x = self.block7(x)              # (B, 128, 80)
+        x = self.block8(x)              # (B, 128, 40)
+        x = self.block9(x)              # (B, 128, 20)
+        x = self.block10(x)             #
+        x = x.view(x.shape[0], -1)      # (B, 128*4)
+        x = self.block11(x)       
+        x = self.block12(x)                    
+
+        outputs = self.linear_out(x)    # (B, 1)
+
+        return outputs
+
+
+class ResNetBigKernelBin7(nn.Module):
+    """1D CNN Architecture with residual connections, Big kernel size, with couple dense layers
     """
 
     def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
@@ -246,12 +302,12 @@ class ResNetBigKernelBin7(nn.Module):
         self.dropout = dropout
 
         # two large kernsl to begin with with no downsampling
-        self.block0 = ConvResBlock(in_channels=1, out_channels=64, kernel_size=125, padding="same", batch_normalization=False, dropout=0)
-        self.block0a = ConvResBlock(in_channels=64, out_channels=64, kernel_size=63, padding="same", dropout=self.dropout)
+        self.block0 = ConvResBlock(in_channels=1, out_channels=64, kernel_size=65, padding="same", batch_normalization=False, dropout=0)
+        self.block0a = ConvResBlock(in_channels=64, out_channels=64, kernel_size=65, padding="same", dropout=self.dropout)
         # downsample from now
-        self.block1 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=31, pooling_size=2, padding="same", dropout=self.dropout)
-        self.block2 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=31, pooling_size=2, padding="same", dropout=self.dropout)
-        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=15, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block1 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
         self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
         self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=5, pooling_size=2, padding="same", dropout=self.dropout)
         self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)

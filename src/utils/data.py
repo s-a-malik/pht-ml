@@ -39,6 +39,7 @@ class LCData(torch.utils.data.Dataset):
         bin_factor=7,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=0.5,
         single_transit_only=True,
@@ -69,6 +70,7 @@ class LCData(torch.utils.data.Dataset):
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
+        self.vol_negs_only = vol_negs_only
         self.lc_noise_prob = lc_noise_prob
         self.min_snr = min_snr
         self.single_transit_only = single_transit_only
@@ -160,6 +162,12 @@ class LCData(torch.utils.data.Dataset):
             x = read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
             if x["flux"] is None:
+                if self.store_cache:
+                    self.cache[idx] = (x, None)
+                return x, None
+
+            # if only want zero labels, skip c.f. collate_fn
+            if (self.vol_negs_only) and (x["tic"] not in self.zero_tics):
                 if self.store_cache:
                     self.cache[idx] = (x, None)
                 return x, None
@@ -531,6 +539,7 @@ def get_data_loaders(args):
     synthetic_prob = args.synthetic_prob
     eb_prob = args.eb_prob
     lc_noise_prob = args.lc_noise_prob
+    vol_negs_only = args.vol_negs_only
     batch_size = args.batch_size
     num_workers = args.num_workers
     cache = not args.no_cache
@@ -588,6 +597,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        vol_negs_only=vol_negs_only,
         lc_noise_prob=lc_noise_prob,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
@@ -604,6 +614,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
@@ -620,6 +631,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,       # irrelevant for test set

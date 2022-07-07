@@ -34,6 +34,9 @@ def parse_args():
                         type=float,
                         default=0.0,
                         help="Augment with eclipsing binary data, proportion of data to be EB injected.")
+    parser.add_argument("--vol-negs-only",
+                        action="store_true",
+                        help="Only use hard negative volunteer labels.")
     parser.add_argument("--lc-noise-prob",
                         type=float,
                         default=0.1,
