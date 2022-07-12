@@ -42,11 +42,18 @@
 # big kernel dense
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big_kernel_dense --experiment-name resnet-big-kernel-full --batch-size 256  --no-cache
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big_kernel_dense --experiment-name resnet-big-kernel-dense --batch-size 256
-#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big_kernel_dense --experiment-name resnet-big-kernel-dense --batch-size 256
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big_kernel_dense --experiment-name resnet-big-kernel-dense --batch-size 256 --checkpoint 2f7nllae --epochs 200
 
 # full conv evaluate
---num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_full_conv --experiment-name resnet-conv-full --batch-size 256 --checkpoint 3t9dbnee --evaluate --no-cache
---num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_full_conv --experiment-name resnet-conv-full --batch-size 256
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_full_conv --experiment-name resnet-conv-full --batch-size 256 --checkpoint 3t9dbnee --evaluate --no-cache
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_full_conv --experiment-name resnet-conv-full --batch-size 256
+
+# more synth
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --min-snr 0.5 --lc-noise-prob 0.1 --aug-prob 0.1 --batch-size 256 --data-split all --model resnet_big --experiment-name resnet-big-full --checkpoint 177l1oe4 --evaluate --no-cache
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --batch-size 256 --data-split all --model resnet_big --experiment-name resnet-big-full
+
+# not dense kernel
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split full --model resnet_big_kernel --experiment-name resnet-big-kernel-full --batch-size 256 --evaluate --checkpoint zswph3lj
 
 # only synth
 --num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --vol-negs-only --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-only-synth --batch-size 256
