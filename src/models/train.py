@@ -94,6 +94,14 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
+            # check if reduction is none, if so, weight loss by snr and tois
+            # if criterion.reduction == "none":
+            #     # weight by some function of snr and toi
+            #     snr = x["snr"]
+            #     tois = x["toi"]
+            #     weighting = utils.compute_sample_weighting(snr, tois)
+               
+
             avg_loss.update(loss.data.cpu().item(), y.size(0))     
             
             if task == "train":
@@ -313,6 +321,28 @@ def init_model(args):
             output_dim=1,
             dropout=0.1
         )
+    elif model_name == "resnet_full_conv_7":
+        model = nets.ResNetFullConvBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_big_kernel_7":
+        model = nets.ResNetBigKernelBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "resnet_big_kernel_dense_7":
+        model = nets.ResNetBigKernelDenseBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor),
+            output_dim=1,
+            dropout=0.1
+        )
+    elif model_name == "wavenet_7":
+        model = nets.WaveNetBin7(
+            input_dim=int(SHORTEST_LC / args.bin_factor)
+        )
     else:
         raise NameError(f"Unknown model {args.model}")
     
@@ -343,6 +373,8 @@ def init_optim(args, model):
     
     if args.loss == "BCE":
         criterion = torch.nn.BCEWithLogitsLoss()
+    elif args.loss == "BCE_weighted":
+        criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
     elif args.loss == "MSE":
         criterion = torch.nn.MSELoss()
     else:

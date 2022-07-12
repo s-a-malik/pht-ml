@@ -21,13 +21,10 @@ from astropy.table import Table
 
 if __name__ == "__main__":
     import transforms
-    from utils import plot_lc, get_sectors, read_lc_csv
+    from utils import plot_lc, get_sectors, read_lc_csv, SHORTEST_LC
 else:
     from utils import transforms
-    from utils.utils import plot_lc, get_sectors, read_lc_csv
-
-SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
-# SHORTEST_LC = 18900 # binned 7 sector 10-14
+    from utils.utils import plot_lc, get_sectors, read_lc_csv, SHORTEST_LC
 
 #### DATASET CLASSES
 
@@ -42,6 +39,7 @@ class LCData(torch.utils.data.Dataset):
         bin_factor=7,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=0.5,
         single_transit_only=True,
@@ -72,6 +70,7 @@ class LCData(torch.utils.data.Dataset):
         self.bin_factor = bin_factor
         self.synthetic_prob = synthetic_prob
         self.eb_prob = eb_prob
+        self.vol_negs_only = vol_negs_only
         self.lc_noise_prob = lc_noise_prob
         self.min_snr = min_snr
         self.single_transit_only = single_transit_only
@@ -163,6 +162,12 @@ class LCData(torch.utils.data.Dataset):
             x = read_lc_csv(lc_file)
             # if corrupt return None and skip c.f. collate_fn
             if x["flux"] is None:
+                if self.store_cache:
+                    self.cache[idx] = (x, None)
+                return x, None
+
+            # if only want zero labels, skip c.f. collate_fn
+            if (self.vol_negs_only) and (x["tic"] not in self.zero_tics):
                 if self.store_cache:
                     self.cache[idx] = (x, None)
                 return x, None
@@ -533,6 +538,8 @@ def get_data_loaders(args):
     bin_factor = args.bin_factor
     synthetic_prob = args.synthetic_prob
     eb_prob = args.eb_prob
+    lc_noise_prob = args.lc_noise_prob
+    vol_negs_only = args.vol_negs_only
     batch_size = args.batch_size
     num_workers = args.num_workers
     cache = not args.no_cache
@@ -557,12 +564,11 @@ def get_data_loaders(args):
 
     # composed transform
     training_transform = torchvision.transforms.Compose([
-        # transforms.InjectLCNoise(prob=aug_prob, bin_factor=bin_factor, data_root_path=data_root_path, data_split=f"train_{data_split}"),
         transforms.NormaliseFlux(),
         transforms.MedianAtZero(),
-        # transforms.MirrorFlip(prob=aug_prob),
+        transforms.MirrorFlip(prob=aug_prob),
         transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=1.0, permute_fraction=permute_fraction),    # always permute to remove sector bias
+        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=max_lc_length),
         transforms.ToFloatTensor()
@@ -585,15 +591,14 @@ def get_data_loaders(args):
         transforms.ToFloatTensor()
     ])
 
-
-    # TODO choose type of data set - set an argument for this (e.g. simulated/real proportions)
     train_set = LCData(
         data_root_path=data_root_path,
         data_split=f"train_{data_split}",
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
-        lc_noise_prob=1.0,
+        vol_negs_only=vol_negs_only,
+        lc_noise_prob=lc_noise_prob,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
         transform=training_transform,
@@ -609,6 +614,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=synthetic_prob,
         eb_prob=eb_prob,
+        vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,
@@ -625,6 +631,7 @@ def get_data_loaders(args):
         bin_factor=bin_factor,
         synthetic_prob=0.0,
         eb_prob=0.0,
+        vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=min_snr,
         single_transit_only=not multi_transit,       # irrelevant for test set
@@ -695,6 +702,7 @@ if __name__ == "__main__":
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
+    ap.add_argument("--lc-noise-prob", type=float, default=0.5)
     ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
     ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")
     ap.add_argument("--delete-fraction", type=float, default=0.1, help="Fraction of light curve to be randomly deleted.")

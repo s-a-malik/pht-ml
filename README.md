@@ -5,7 +5,7 @@ Identify long period exoplanets from TESS light curves using deep learning.
 
 ## Data
 
-TESS data (link). Trained using
+TESS data (link).
 
 ### Preprocessing Pipeline
 
@@ -19,12 +19,10 @@ All hyperparameters are controlled via command line arguments.
 
 ## General TODO for code
 
-- [x] get to max GPU utilisation
-- [ ] Seperate out injected transit data
-- [ ] add some heuristics for easy/hard classifications (e.g. depth of transit, SNR for stars). then add this to the loss?
-- [ ] Add example light curves, targets, predictions from val set as logs on wandb to help debugging
 - [ ] make proper enumerations for each of the possible configs
 - [ ] make more general for multi vs single injected transits
+- [ ] automate analysis of real planet data and use as additional loss for training
+- [ ] when trimming light curves to same length, remove the Nans (shorten) instead of the start and end
 
 ## Related Papers and Repos
 

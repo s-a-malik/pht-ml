@@ -34,6 +34,13 @@ def parse_args():
                         type=float,
                         default=0.0,
                         help="Augment with eclipsing binary data, proportion of data to be EB injected.")
+    parser.add_argument("--vol-negs-only",
+                        action="store_true",
+                        help="Only use hard negative volunteer labels.")
+    parser.add_argument("--lc-noise-prob",
+                        type=float,
+                        default=0.1,
+                        help="Augment with noise in light curves") 
     parser.add_argument("--num-workers",
                         type=int,
                         default=0,
@@ -71,7 +78,7 @@ def parse_args():
                         help="Multiple of rolling standard deviation of noise added to light curve for training.")
     parser.add_argument("--min-snr",
                         type=float,
-                        default=0.5,
+                        default=0.0,
                         help="Min signal to noise ratio for planet injection.")
     parser.add_argument("--multi-transit",
                         action="store_true",
@@ -88,7 +95,7 @@ def parse_args():
     parser.add_argument("--model",
                         type=str,
                         default="ramjet",
-                        help="Model type: (ramjet, dense, resnet).")
+                        help="Model type: (ramjet, dense, resnet, resnet_big, resnet_big_kernel, resnet_full_conv, wavenet).")
     parser.add_argument("--dropout",
                         type=float,
                         default=0.1,
@@ -119,7 +126,7 @@ def parse_args():
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",
-                        help="loss function")
+                        help="loss function (BCE, BCE_weighted, MSE")
     parser.add_argument("--disable-cuda",
                         action="store_true",
                         help="don't use GPU")

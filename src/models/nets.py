@@ -1,12 +1,15 @@
 """model_classes.py
 Model classes for light curve classification
 """
+from functools import reduce
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.components import ConvBlock, ConvResBlock, DenseBlock, get_activation
+from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForSequenceClassification
+
+from models.components import *
 
 
 class RamjetBin3(nn.Module):
@@ -229,6 +232,277 @@ class ResNetBigBin7(nn.Module):
         outputs = self.linear_out(x)    # (B, 1)
 
         return outputs
+
+
+class ResNetBigKernelDenseBin7(nn.Module):
+    """1D CNN Architecture with residual connections, Big kernel size
+    """
+
+    def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
+        super(ResNetBigKernelDenseBin7, self).__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.dropout = dropout
+
+        # two large kernsl to begin with with no downsampling
+        self.block0 = ConvResBlock(in_channels=1, out_channels=64, kernel_size=65, padding="same", batch_normalization=False, dropout=0)
+        self.block0a = ConvResBlock(in_channels=64, out_channels=64, kernel_size=65, padding="same", dropout=self.dropout)
+        # downsample from now
+        self.block1 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=5, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block7 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block8 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block9 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block10 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        
+        self.block11 = DenseBlock(input_dim=128*3, output_dim=256, dropout=self.dropout)
+        self.block12 = DenseBlock(input_dim=256, output_dim=20, dropout=0, batch_normalization=False)
+
+        self.linear_out = nn.Linear(20, self.output_dim)
+
+    
+    def forward(self, x):
+        # x: (B, LC_LEN)
+        x = x.view(x.shape[0], 1, x.shape[-1])  # input shape: (B, 1, 2500)
+        x = self.block0(x)             
+        x = self.block0a(x)            
+        x = self.block1(x)             
+        x = self.block2(x)             
+        x = self.block3(x)             
+        x = self.block4(x)              
+        x = self.block5(x)              # (B, 128, 320)
+        x = self.block6(x)              # (B, 128, 160)
+        x = self.block7(x)              # (B, 128, 80)
+        x = self.block8(x)              # (B, 128, 40)
+        x = self.block9(x)              # (B, 128, 20)
+        x = self.block10(x)             #
+        x = x.view(x.shape[0], -1)      # (B, 128*4)
+        x = self.block11(x)       
+        x = self.block12(x)                    
+
+        outputs = self.linear_out(x)    # (B, 1)
+
+        return outputs
+
+
+class ResNetBigKernelBin7(nn.Module):
+    """1D CNN Architecture with residual connections, Big kernel size, with couple dense layers
+    """
+
+    def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
+        super(ResNetBigKernelBin7, self).__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.dropout = dropout
+
+        # two large kernsl to begin with with no downsampling
+        self.block0 = ConvResBlock(in_channels=1, out_channels=64, kernel_size=65, padding="same", batch_normalization=False, dropout=0)
+        self.block0a = ConvResBlock(in_channels=64, out_channels=64, kernel_size=65, padding="same", dropout=self.dropout)
+        # downsample from now
+        self.block1 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=25, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=7, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=5, pooling_size=2, padding="same", dropout=self.dropout)
+        self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block7 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block8 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block9 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block10 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block11 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block12 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+
+        self.linear_out = nn.Linear(128, self.output_dim)
+
+    
+    def forward(self, x):
+        # x: (B, LC_LEN)
+        x = x.view(x.shape[0], 1, x.shape[-1])  # input shape: (B, 1, 2500)
+        x = self.block0(x)             
+        x = self.block0a(x)            
+        x = self.block1(x)             
+        x = self.block2(x)             
+        x = self.block3(x)             
+        x = self.block4(x)              
+        x = self.block5(x)              # (B, 128, 320)
+        x = self.block6(x)              # (B, 128, 160)
+        x = self.block7(x)              # (B, 128, 80)
+        x = self.block8(x)              # (B, 128, 40)
+        x = self.block9(x)              # (B, 128, 20)
+        x = self.block10(x)             #
+        x = self.block11(x)       
+        x = self.block12(x)                    
+
+        x = x.view(x.shape[0], -1)      # (B, 128)
+        outputs = self.linear_out(x)    # (B, 1)
+
+        return outputs
+
+
+class ResNetFullConvBin7(nn.Module):
+    """1D CNN Architecture with residual connections
+    """
+
+    def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
+        super(ResNetFullConvBin7, self).__init__()
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.dropout = dropout
+
+        # two large kernsl to begin with with no downsampling
+        self.block0 = ConvResBlock(in_channels=1, out_channels=32, kernel_size=7, padding="same", batch_normalization=False, dropout=0)
+        self.block0a = ConvResBlock(in_channels=32, out_channels=32, kernel_size=5, padding="same", dropout=self.dropout)
+        # downsample from now
+        self.block1 = ConvResBlock(in_channels=32, out_channels=32, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=32, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block7 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block8 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block9 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block10 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block11 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+
+        self.linear_out = nn.Linear(128, self.output_dim)
+
+    
+    def forward(self, x):
+        # x: (B, LC_LEN)
+        x = x.view(x.shape[0], 1, x.shape[-1])  # input shape: (B, 1, 2500)
+        x = self.block0(x)
+        x = self.block0a(x)            
+        x = self.block1(x)             # (B, 128, 1250)
+        x = self.block2(x)             # (B, 128, 625)
+        x = self.block3(x)             # (B, 128, 312)
+        x = self.block4(x)              # (B, 128, 156)
+        x = self.block5(x)              # (B, 128, 80)
+        x = self.block6(x)              # (B, 128, 40)
+        x = self.block6(x)              # (B, 128, 20)
+        x = self.block7(x)              # (B, 128, 10)
+        x = self.block8(x)              # (B, 128, 5)
+        x = self.block9(x)              # (B, 128, 3)
+        x = self.block10(x)             # (B, 128, 2)
+        x = self.block11(x)             # (B, 128, 1)
+        x = x.view(x.shape[0], -1)      # (B, 128)
+        outputs = self.linear_out(x)    # (B, 1)
+
+        return outputs
+
+
+class WaveNetBin7(nn.Module):
+    """c.f. https://github.com/ButterscotchV/Wavenet-PyTorch/blob/master/wavenet/models.py
+    """
+    def __init__(self, 
+                 input_dim,
+                 num_channels=1,
+                 num_classes=1,
+                 num_blocks=2,
+                 num_layers=8,
+                 num_hidden=64,
+                 kernel_size=2,
+                 dropout=0.1):
+        super(WaveNetBin7, self).__init__()
+        self.input_dim = input_dim
+        self.num_channels = num_channels
+        self.num_classes = num_classes
+        self.num_blocks = num_blocks
+        self.num_layers = num_layers
+        self.num_hidden = num_hidden
+        self.kernel_size = kernel_size
+        self.dropout = dropout
+        self.receptive_field = 1 + (kernel_size - 1) * \
+                               num_blocks * sum([2**k for k in range(num_layers)])
+        self.output_width = input_dim - self.receptive_field + 1
+        print('receptive_field: {}'.format(self.receptive_field))
+        print('Output width: {}'.format(self.output_width))
+        
+        hs = []
+        batch_norms = []
+
+        # wavenet encoder
+        first = True
+        for b in range(num_blocks):
+            for i in range(num_layers):
+                rate = 2**i
+                if first:
+                    h = GatedResidualBlock(num_channels, num_hidden, kernel_size, 
+                                           self.output_width, dilation=rate, padding="same")
+                    first = False
+                else:
+                    h = GatedResidualBlock(num_hidden, num_hidden, kernel_size,
+                                           self.output_width, dilation=rate, padding="same")
+                h.name = 'b{}-l{}'.format(b, i)
+
+                hs.append(h)
+                batch_norms.append(nn.BatchNorm1d(num_hidden))
+
+        self.hs = nn.ModuleList(hs)
+        self.batch_norms = nn.ModuleList(batch_norms)
+
+        # downsample from now
+        self.block1 = ConvResBlock(in_channels=num_hidden, out_channels=32, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block2 = ConvResBlock(in_channels=32, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block3 = ConvResBlock(in_channels=64, out_channels=64, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block4 = ConvResBlock(in_channels=64, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block5 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block6 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block7 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block8 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block9 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block10 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+        self.block11 = ConvResBlock(in_channels=128, out_channels=128, kernel_size=3, pooling_size=2, dropout=self.dropout)
+
+        self.linear_out = nn.Linear(128, self.num_classes)
+
+
+    def forward(self, x):
+        x = x.view(x.shape[0], 1, x.shape[-1])
+        skips = []
+        for layer, batch_norm in zip(self.hs, self.batch_norms):
+            x, skip = layer(x)
+            x = batch_norm(x)
+            skips.append(skip)
+        x = reduce((lambda a, b : torch.add(a, b)), skips)
+        # classifier
+        x = self.block1(x)             # (B, 128, 1250)
+        x = self.block2(x)             # (B, 128, 625)
+        x = self.block3(x)             # (B, 128, 312)
+        x = self.block4(x)              # (B, 128, 156)
+        x = self.block5(x)              # (B, 128, 80)
+        x = self.block6(x)              # (B, 128, 40)
+        x = self.block6(x)              # (B, 128, 20)
+        x = self.block7(x)              # (B, 128, 10)
+        x = self.block8(x)              # (B, 128, 5)
+        x = self.block9(x)              # (B, 128, 3)
+        x = self.block10(x)             # (B, 128, 2)
+        x = self.block11(x)             # (B, 128, 1)
+        x = x.view(x.shape[0], -1)      # (B, 128)
+        outputs = self.linear_out(x)    # (B, 1)
+
+        return outputs
+
+
+class Wav2Vec2(nn.Module):
+    """c.f. https://arxiv.org/pdf/2006.11477.pdf
+    https://huggingface.co/docs/transformers/model_doc/wav2vec2
+    """
+
+    def __init__(self, input_dim=2500, output_dim=1):
+        """TODO: add args for the transformer here.
+        """
+        super(Wav2Vec2, self).__init__()
+
+    def forward(self, x):
+        pass
 
 
 class SimpleNetwork(nn.Module):
