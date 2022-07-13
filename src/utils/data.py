@@ -434,7 +434,6 @@ class LCData(torch.utils.data.Dataset):
         Returns:
         - transit (np.array): extracted single transit (shape variable)
         """
-        # print("extracting single transit")
         # get the first dip
         start_idx = np.argmax(x<1)
         # get the end of the dip
@@ -540,6 +539,7 @@ def get_data_loaders(args):
     eb_prob = args.eb_prob
     lc_noise_prob = args.lc_noise_prob
     vol_negs_only = args.vol_negs_only
+    test_synths = args.test_synths
     batch_size = args.batch_size
     num_workers = args.num_workers
     cache = not args.no_cache
@@ -629,12 +629,12 @@ def get_data_loaders(args):
         data_root_path=data_root_path,
         data_split=f"test_{data_split}",
         bin_factor=bin_factor,
-        synthetic_prob=0.0,
-        eb_prob=0.0,
+        synthetic_prob=synthetic_prob if test_synths else 0.0,
+        eb_prob=eb_prob if test_synths else 0.0,
         vol_negs_only=False,
         lc_noise_prob=0.0,
         min_snr=min_snr,
-        single_transit_only=not multi_transit,       # irrelevant for test set
+        single_transit_only=not multi_transit,
         transform=test_transform,
         preprocessing=preprocessing,
         store_cache=cache,
@@ -702,6 +702,8 @@ if __name__ == "__main__":
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--synthetic-prob", type=float, default=1.0)
     ap.add_argument("--eb-prob", type=float, default=0.0)
+    ap.add_argument("--vol-negs-only", action="store_true", help="Only use hard negative volunteer labels.")
+    ap.add_argumnet("--test-synths", action="store_true", help="Use synthetic data for testing also.")
     ap.add_argument("--lc-noise-prob", type=float, default=0.5)
     ap.add_argument("--aug-prob", type=float, default=1.0, help="Probability of augmenting data with random defects.")
     ap.add_argument("--permute-fraction", type=float, default=0.25, help="Fraction of light curve to be randomly permuted.")

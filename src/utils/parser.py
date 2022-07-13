@@ -37,6 +37,9 @@ def parse_args():
     parser.add_argument("--vol-negs-only",
                         action="store_true",
                         help="Only use hard negative volunteer labels.")
+    parser.add_argument("--test-synths",
+                        action="store_true",
+                        help="Use synthetic data for testing also.")
     parser.add_argument("--lc-noise-prob",
                         type=float,
                         default=0.1,
