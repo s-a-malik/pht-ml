@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import AutoMinorLocator
 
-import transforms
+from utils import transforms
 
 matplotlib.use("Agg")
 
@@ -104,7 +104,7 @@ def plot_from_csv(lcfile):
 
 
 
-def plot_lc(sec, tic_id, binfac):
+def plot_lc_test(args):
     """
     Function to plot the TESS LCs.
     Uses the PDCSAP flux - processed by the TESS pipeline to have some of the systematics removed.
@@ -119,6 +119,12 @@ def plot_lc(sec, tic_id, binfac):
     ------
     Figure showing the TESS LC for a given TIC ID. Showing the binned and unbinned data.
     """
+    binfac = args.binfac
+    tic_id = args.tic_id
+    sec = args.sec
+    seed = args.seed
+    # set seed
+    np.random.seed(seed)
 
     lcfile = get_lc_file(sec, tic_id)
 
@@ -261,36 +267,12 @@ def plot_lc(sec, tic_id, binfac):
     # plot the transformed LC
     # ------------------------------------------
 
-    # plot the transformed light curve
-    # val_transform = torchvision.transforms.Compose([
-    #     transforms.NormaliseFlux(),
-    #     transforms.RemoveOutliers(window=200, std_dev=3),
-    #     transforms.ImputeNans(method="zero"),
-    #     transforms.Cutoff(length=int(17500/binfac)),
-    #     transforms.ToFloatTensor()
-    # ])
-
-    # # composed transform
-    # training_transform = torchvision.transforms.Compose([
-    #     transforms.NormaliseFlux(),
-    #     transforms.RemoveOutliers(window=100, std_dev=4),
-    #     transforms.MirrorFlip(prob=0.0),
-    #     transforms.RandomDelete(prob=0.0, delete_fraction=0.1),
-    #     transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-    #     transforms.GaussianNoise(prob=1.0, window=100, std=0.2),
-    #     transforms.ImputeNans(method="zero"),
-    #     transforms.Cutoff(length=int(17500/binfac)),
-    #     transforms.ToFloatTensor()
-    # ])
-
     training_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        # transforms.RemoveOutliersPercent(percent_change=0.15),
-        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
-        transforms.MirrorFlip(prob=0.0),
-        # transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=0.0, permute_fraction=0.1),
-        transforms.GaussianNoise(prob=1.0, window=100, std=0.1),
+        transforms.MedianAtZero(),
+        transforms.MirrorFlip(prob=1.0),
+        transforms.RandomDelete(prob=0.1, delete_fraction=0.1),
+        transforms.RandomShift(prob=0.1, permute_fraction=0.25),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
@@ -299,8 +281,7 @@ def plot_lc(sec, tic_id, binfac):
     # test tranforms - do not randomly delete or permute
     val_transform = torchvision.transforms.Compose([
         transforms.NormaliseFlux(),
-        # transforms.RemoveOutliersPercent(percent_change=0.15),
-        # transforms.RemoveOutliers(window=rolling_window, std_dev=outlier_std),
+        transforms.MedianAtZero(),
         transforms.ImputeNans(method="zero"),
         transforms.Cutoff(length=int(17500/binfac)),
         transforms.ToFloatTensor()
@@ -317,12 +298,46 @@ def plot_lc(sec, tic_id, binfac):
     ax.plot(
         time_binned[:len(flux_binned_val_transformed)],
         flux_binned_val_transformed,
-        color="royalblue",
+        color="white",
         marker="o",
         markersize=2,
         lw=0,
         label="val",
     )
+    ## define that length on the x axis - I don't want it to display the 0 point
+    delta_flux = np.nanmax(flux_binned_val_transformed) - np.nanmin(flux_binned_val_transformed)
+    ## set the y lim.
+    percent_change = delta_flux * 0.1
+    # ax.set_ylim(np.nanmin(flux_binned_val_transformed) - percent_change, np.nanmax(flux_binned_val_transformed) + percent_change)
+
+    ## label the axis.
+    ax.xaxis.set_label_coords(0.063, 0.06)  # position of the x-axis label
+    ## define tick marks/axis parameters
+    minorLocator = AutoMinorLocator()
+    ax.xaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", which="minor", colors="w", length=3, labelsize=13)
+    minorLocator = AutoMinorLocator()
+    ax.yaxis.set_minor_locator(minorLocator)
+    ax.tick_params(direction="in", length=3, which="minor", colors="grey", labelsize=13)
+    ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
+    ax.tick_params(axis="y", direction="in", pad=-50, color="white", labelcolor="white")
+    ax.tick_params(axis="x", direction="in", pad=-17, color="white", labelcolor="white")
+    ax.set_xlabel("Time (days)", fontsize=10, color="white")
+    # ax.set_axis_bgcolor("#03012d")  # depending on what version of Python you're using.
+    ax.set_facecolor("#03012d")
+
+    ## save the images
+    _, file_name = os.path.split(lcfile)
+    save_name = file_name + f"_binfac-{binfac}_val_preprocessed.png"
+    path = "/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots"
+    print(f"saving to {path}/{save_name}")
+    plt.savefig("%s/%s" % (path, save_name), dpi=300, format="png")
+
+    plt.clf()
+
+    ## define the plotting area
+    fig, ax = plt.subplots(figsize=(16, 5))
+    plt.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.05)
 
     ax.plot(
         time_binned[:len(flux_binned_train_transformed)],
@@ -357,11 +372,11 @@ def plot_lc(sec, tic_id, binfac):
     ax.set_facecolor("#03012d")
 
     # legend
-    ax.legend(loc="upper right", fontsize=10, facecolor="white", framealpha=0.5)
+    # ax.legend(loc="upper right", fontsize=10, facecolor="white", framealpha=0.5)
 
     ## save the images
     _, file_name = os.path.split(lcfile)
-    save_name = file_name + f"_binfac-{binfac}_preprocessed.png"
+    save_name = file_name + f"_binfac-{binfac}_train_preprocessed.png"
     path = "/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots"
     print(f"saving to {path}/{save_name}")
     plt.savefig("%s/%s" % (path, save_name), dpi=300, format="png")
@@ -388,16 +403,8 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, help="Seed", default=0)
 
     args = ap.parse_args()
-    binfac = args.binfac
-    tic_id = args.tic_id
-    sec = args.sec
-    seed = args.seed
-    # set seed
-    np.random.seed(seed)
 
-    # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/Sector1/light_curves/two_min/tess2018206045859-s0001-0000000008195886-0120-s_lc.fits"
-    # lc_file = "/mnt/zfsusers/shreshth/pht_project/data/TESS/planethunters/Rel10/Sector10/light_curves/two_min/tess2019085135100-s0010-0000000001627611-0140-s_lc.fit"
-    plot_lc(sec, tic_id, binfac)
+    plot_lc_test(args)
 
     # lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvtor10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999_binfac-5.csv"
     lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp/Sector10/tic-461196191_sec-10_cam-2_chi-3_tessmag-8.38300037_teff-5552.0_srad-3.71780992_cdpp05-157.23878479_cdpp1-119.15205383_cdpp2-88.38750458_binfac-7.csv"

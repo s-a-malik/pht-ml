@@ -172,5 +172,9 @@ if __name__ == "__main__":
         print("\nTESTING DATALOADER")
         from utils.data import test_dataloader
         test_dataloader(args)
+    elif args.module_test == "plot":
+        print("\nPLOTTING LC")
+        from utils.plot_lc import plot_lc_test
+        plot_lc_test(args)
     else:
         main(args)
