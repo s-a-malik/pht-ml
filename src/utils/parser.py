@@ -195,9 +195,9 @@ def parse_args():
                         default="",
                         help="test module (dataloader, plot)")
     # plotting args
-    parser.add_argument("--binfac", type=int, help="Binning factor", default=7)
-    parser.add_argument("--tic-id", type=int, help="TIC ID", default=461196191)
-    parser.add_argument("--sec", type=int, help="Sector", default=10)
+    parser.add_argument("--binfac", type=int, help="Binning factor", default=-1)
+    parser.add_argument("--tic-id", type=int, help="TIC ID", default=-1)
+    parser.add_argument("--sec", type=int, help="Sector", default=-1)
 
 
     args = parser.parse_args(sys.argv[1:])
