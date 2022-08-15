@@ -32,7 +32,7 @@ def main(args):
     # change artifact cache directory to scratch
     os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './')
     job_type = "eval" if args.evaluate else "train"
-    run = wandb.init(entity="s-a-malik",
+    run = wandb.init(entity=args.wandb_entity,
                      project=args.wandb_project,
                      group=args.experiment_name,
                      job_type=job_type,

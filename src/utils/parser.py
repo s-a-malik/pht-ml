@@ -176,6 +176,10 @@ def parse_args():
     parser.add_argument("--wandb-offline",
                         action="store_true",
                         help="don't use wandb")
+    parser.add_argument("--wandb-entity",
+                        type=str,
+                        default="s-a-malik",
+                        help="wandb entity")
     parser.add_argument("--wandb-project",
                         type=str,
                         default="pht-ml",

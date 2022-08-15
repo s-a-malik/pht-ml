@@ -63,17 +63,20 @@
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_full_conv --experiment-name eval-on-synth-0 --batch-size 256 --checkpoint 1ew0h1tb --evaluate --no-cache --test-synths
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big_kernel_dense --experiment-name eval-on-synth-01 --batch-size 256 --checkpoint 3vnv1a9q --evaluate --no-cache --test-synths
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name eval-on-synth-01 --batch-size 256 --checkpoint 3o4txpuz --evaluate --no-cache --test-synths
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name eval-on-synth-03 --batch-size 256 --checkpoint 2ezqjo19 --evaluate --no-cache --test-synths
 
 
 # only synth eval on synth
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --vol-negs-only --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-only-synth --batch-size 256 --checkpoint 2qup98l5 --evaluate --no-cache --test-synths
+
+
 
 # ensemble 
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 0
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 1
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 2
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 3
---num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 4
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 4
 
 
 
