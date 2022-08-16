@@ -123,6 +123,7 @@ def plot_lc_test(args):
     tic_id = args.tic_id
     sec = args.sec
     seed = args.seed
+    path = args.plot_path
     # set seed
     np.random.seed(seed)
 
@@ -258,7 +259,7 @@ def plot_lc_test(args):
     ## save the images
     _, file_name = os.path.split(lcfile)
     save_name = file_name + f"_binfac-{binfac}.png"
-    path = "/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots"
+
     print(f"saving to {path}/{save_name}")
     plt.savefig("%s/%s" % (path, save_name), dpi=300, format="png")
 
@@ -329,7 +330,6 @@ def plot_lc_test(args):
     ## save the images
     _, file_name = os.path.split(lcfile)
     save_name = file_name + f"_binfac-{binfac}_val_preprocessed.png"
-    path = "/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots"
     print(f"saving to {path}/{save_name}")
     plt.savefig("%s/%s" % (path, save_name), dpi=300, format="png")
 
@@ -377,7 +377,6 @@ def plot_lc_test(args):
     ## save the images
     _, file_name = os.path.split(lcfile)
     save_name = file_name + f"_binfac-{binfac}_train_preprocessed.png"
-    path = "/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots"
     print(f"saving to {path}/{save_name}")
     plt.savefig("%s/%s" % (path, save_name), dpi=300, format="png")
 
@@ -401,6 +400,7 @@ if __name__ == "__main__":
     ap.add_argument("--tic-id", type=int, help="TIC ID", default=461196191)
     ap.add_argument("--sec", type=int, help="Sector", default=10)
     ap.add_argument("--seed", type=int, help="Seed", default=0)
+    ap.add_argument("--plot-path", type=str, help="Path to save the plots", default="/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots")
 
     args = ap.parse_args()
 

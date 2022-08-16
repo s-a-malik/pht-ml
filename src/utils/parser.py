@@ -202,6 +202,7 @@ def parse_args():
     parser.add_argument("--binfac", type=int, help="Binning factor", default=-1)
     parser.add_argument("--tic-id", type=int, help="TIC ID", default=-1)
     parser.add_argument("--sec", type=int, help="Sector", default=-1)
+    parser.add_argument("--plot-path", type=str, help="path to save plots", default="/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots")
 
 
     args = parser.parse_args(sys.argv[1:])
