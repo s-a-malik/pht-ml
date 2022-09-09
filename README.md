@@ -6,7 +6,7 @@ This repository contains code to train machine learning models to classify plane
 
 ### Light Curves and Synthetic Data
 
-.fits files were downloaded from the [TESS archive](https://archive.stsci.edu/missions-and-data/tess). We use the ETE-6 dataset to generate synthetic data.
+.fits files were downloaded from the [TESS archive](https://archive.stsci.edu/missions-and-data/tess). We use the [ETE-6](https://archive.stsci.edu/missions-and-data/tess/data-products/ete-6) dataset to generate synthetic data.
 
 ### Targets
 
