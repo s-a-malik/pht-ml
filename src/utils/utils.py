@@ -33,7 +33,6 @@ TEST_SECTORS_FULL = [36,37,38]
 TEST_SECTORS_ALL = [36,37,38,39,40,41,42,43]
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
-# SHORTEST_LC = 18900 # binned 7 sector 10-14
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -111,27 +110,6 @@ def bce_loss_numpy(preds, labels, reduction="none", eps=1e-7):
         return -np.sum(labels * np.log(preds) + (1 - labels) * np.log(1 - preds))
     else:
         raise ValueError("reduction must be 'none', 'mean', or 'sum'")
-
-
-def compute_sample_weighting(x):
-    """Computes loss weighting for a given batch
-    TODO Compute this in dataloader to save computation.
-    """
-    # normalise by batch size (equivalent to mean loss)
-
-    # default weight is 1
-    weights = torch.ones_like(x["snr"]) # might need to do requires grad
-
-    # weight the synthetics with low snr more
-    # weights = x["snr"] / x["snr"].sum()
-
-    # don't weight the negati
-
-    # weight the real known planets more
-    
-
-
-    return weights
 
 
 def plot_lc(x, save_path=None):

@@ -1,8 +1,6 @@
 """plot_lc.py
-Most code is adapted from Nora Eisner.
 Saves a plot of the light curve, both raw and rebinned. Saves another plot applying the training transform
 command:
-addqueue -c "plot lcs" -q planet -s ../shell_scripts/plot_lc.sh <SECTOR> <TIC_ID> <BIN_FACTOR>
 """
 
 import os
@@ -97,7 +95,7 @@ def plot_from_csv(lcfile):
     ax.set_facecolor("#03012d")
 
     ## save the image
-    path = "/mnt/zfsusers/shreshth/pht_project/data/examples"
+    path = "./data/examples"
     _, file_name = os.path.split(lcfile)
 
     plt.savefig("%s/%s.png" % (path, file_name), format="png")
@@ -385,7 +383,7 @@ def plot_lc_test(args):
 def get_lc_file(sec, tic_id):
     """Get the file name from the TIC ID and sector
     """
-    lc_root_path = "/mnt/zfsusers/shreshth/pht_project/data/TESS"
+    lc_root_path = "./data/TESS"
 
     # use sector as well to reduce the number of files to search
     lc_file = glob(os.path.join(lc_root_path, f"planethunters/Rel{sec}/Sector{sec}/**/*{tic_id}*.fit*"), recursive=True)
@@ -400,13 +398,11 @@ if __name__ == "__main__":
     ap.add_argument("--tic-id", type=int, help="TIC ID", default=461196191)
     ap.add_argument("--sec", type=int, help="Sector", default=10)
     ap.add_argument("--seed", type=int, help="Seed", default=0)
-    ap.add_argument("--plot-path", type=str, help="Path to save the plots", default="/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots")
+    ap.add_argument("--plot-path", type=str, help="Path to save the plots", default="./data/examples/lc_plots")
 
     args = ap.parse_args()
 
     plot_lc_test(args)
 
-    # lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvtor10/tic-150431791_sec-10_cam-4_chi-2_tessmag-7.49399996_teff-6239.41992188_srad-2.25051999_binfac-5.csv"
-    lc_csv = "/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp/Sector10/tic-461196191_sec-10_cam-2_chi-3_tessmag-8.38300037_teff-5552.0_srad-3.71780992_cdpp05-157.23878479_cdpp1-119.15205383_cdpp2-88.38750458_binfac-7.csv"
-
+    # lc_csv = "./data/lc_csvs/test.csv"
     # plot_from_csv(lc_csv)
