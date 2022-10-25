@@ -1,6 +1,5 @@
 """main.py
 Primary entry point for the pht-ml package.
-run on cluster with GPU e.g.:  addqueue -c "comment" -m 4 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 """
 import os
 import wandb
@@ -9,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 import torch
-torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 from utils.utils import load_checkpoint, bce_loss_numpy
 from utils.parser import parse_args
@@ -165,7 +164,6 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    # TODO experiment yaml config file instead?
     print("running on {}".format(args.device))
     print(args)
     if args.module_test == "dataloader":

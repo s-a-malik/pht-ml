@@ -67,17 +67,6 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         model.train()
     else:
         raise NameError("Only train, val or test is allowed as task")
-    
-    # pytorch profiler
-    # with torch.profiler.profile(
-    # schedule=torch.profiler.schedule(
-    #     wait=2,
-    #     warmup=2,
-    #     active=6,
-    #     repeat=1),
-    # on_trace_ready=torch.profiler.tensorboard_trace_handler,
-    # with_stack=True
-    # ) as profiler:
 
     with trange(len(data_loader)) as t:
         for i, batch in enumerate(data_loader):
@@ -94,13 +83,6 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             # compute loss on logits
             loss = criterion(logits, torch.unsqueeze(y, 1))
-            # check if reduction is none, if so, weight loss by snr and tois
-            # if criterion.reduction == "none":
-            #     # weight by some function of snr and toi
-            #     snr = x["snr"]
-            #     tois = x["toi"]
-            #     weighting = utils.compute_sample_weighting(snr, tois)
-               
 
             avg_loss.update(loss.data.cpu().item(), y.size(0))     
             
@@ -157,10 +139,7 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
 
             t.update()
 
-            # profiler.step()
-
     # compute metrics manually, handling zero division. 
-    # TODO this could be done in a simpler way
     acc = np.divide((true_positives + true_negatives), total,  out=np.zeros_like((true_positives + true_negatives)), where=total!=0)
     prec = np.divide(true_positives, (true_positives + false_positives),  out=np.zeros_like(true_positives), where=(true_positives + false_positives)!=0)
     rec = np.divide(true_positives, (true_positives + false_negatives),  out=np.zeros_like(true_positives), where=(true_positives + false_negatives)!=0)

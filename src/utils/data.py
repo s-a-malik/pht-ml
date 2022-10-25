@@ -34,7 +34,7 @@ class LCData(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        data_root_path="/mnt/zfsusers/shreshth/pht_project/data",
+        data_root_path="./data",
         data_split="train_debug",
         bin_factor=7,
         synthetic_prob=0.0,
@@ -227,14 +227,14 @@ class LCData(torch.utils.data.Dataset):
         if (not self.filling_cache) and (np.random.rand() < self.lc_noise_prob):
             x = self._add_lc_noise(x)
             if self.plot_examples:
-                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_noised_with_{x['tic_noise']}_{idx}.png")
+                plot_lc(x["flux"], save_path=f"./data/examples/test_dataloader_noised_with_{x['tic_noise']}_{idx}.png")
         else:
             x["tic_noise"] = -1
 
         if self.transform:
             x["flux"] = self.transform(x["flux"])
             if self.plot_examples:
-                plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
+                plot_lc(x["flux"], save_path=f"./data/examples/test_dataloader_transformed_{idx}.png")
 
         return x, y
 
@@ -687,7 +687,6 @@ def test_dataloader(args):
                     else:
                         simulated = "real"
                     print(simulated)
-                    # plot_lc(x["flux"][j], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_{j}_{simulated}.png")
                     if j == 5:
                         break
                 break
@@ -697,7 +696,7 @@ def test_dataloader(args):
 if __name__ == "__main__":
     # parse data args only
     ap = argparse.ArgumentParser(description="test dataloader")
-    ap.add_argument("--data-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data")
+    ap.add_argument("--data-path", type=str, default="./data")
     ap.add_argument("--data-split", type=str, default="debug")
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--synthetic-prob", type=float, default=1.0)

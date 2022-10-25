@@ -9,7 +9,6 @@ import torch
 
 def parse_args():
     """Command line argument parser.
-    TODO: can use subparsers to group arguments for different modes.
     Returns:
         args: argparse.Namespace object containing the parsed arguments.
     """
@@ -20,11 +19,11 @@ def parse_args():
     # data config
     parser.add_argument("--data-path",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/data",
+                        default="./data",
                         help="Root path for data")
     parser.add_argument("--log-dir",
                         type=str,
-                        default="/mnt/zfsusers/shreshth/pht_project/code/pht-ml/",
+                        default="./code/pht-ml/",
                         help="Root for results/output.")
     parser.add_argument("--synthetic-prob",
                         type=float,
@@ -178,11 +177,11 @@ def parse_args():
                         help="don't use wandb")
     parser.add_argument("--wandb-entity",
                         type=str,
-                        default="s-a-malik",
+                        default="",
                         help="wandb entity")
     parser.add_argument("--wandb-project",
                         type=str,
-                        default="pht-ml",
+                        default="",
                         help="wandb project name")
     parser.add_argument("--experiment-name",
                         type=str,
@@ -202,7 +201,7 @@ def parse_args():
     parser.add_argument("--binfac", type=int, help="Binning factor", default=-1)
     parser.add_argument("--tic-id", type=int, help="TIC ID", default=-1)
     parser.add_argument("--sec", type=int, help="Sector", default=-1)
-    parser.add_argument("--plot-path", type=str, help="path to save plots", default="/mnt/zfsusers/shreshth/pht_project/data/examples/lc_plots")
+    parser.add_argument("--plot-path", type=str, help="path to save plots", default="./data/examples/lc_plots")
 
 
     args = parser.parse_args(sys.argv[1:])

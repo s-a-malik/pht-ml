@@ -157,20 +157,19 @@ def _read_lc(lc_file):
 
 
 if __name__ == "__main__":
-    # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
     SECTORS = [39,40,41,42,43]
     # SECTORS = list(range(25, 38))
 
     # parse args
     ap = argparse.ArgumentParser(description="test dataloader")
-    ap.add_argument("--lc-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/TESS")
-    ap.add_argument("--planets-root-path", type=str, default="/mnt/zfsusers/shreshth/kepler_share/kepler2/TESS/ETE-6/injected/Planets")
-    ap.add_argument("--eb-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/eb_raw/EBs")
-    ap.add_argument("--labels-root-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/pht_labels")
-    ap.add_argument("--save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/lc_csvs_cdpp")
-    ap.add_argument("--planets-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/planet_csvs")
-    ap.add_argument("--eb-save-path", type=str, default="/mnt/zfsusers/shreshth/pht_project/data/eb_csvs")
+    ap.add_argument("--lc-root-path", type=str, default="./data/TESS")
+    ap.add_argument("--planets-root-path", type=str, default=".data/TESS/ETE-6/injected/Planets")
+    ap.add_argument("--eb-root-path", type=str, default="./data/eb_raw/EBs")
+    ap.add_argument("--labels-root-path", type=str, default="./data/pht_labels")
+    ap.add_argument("--save-path", type=str, default="./data/lc_csvs_cdpp")
+    ap.add_argument("--planets-save-path", type=str, default="./data/planet_csvs")
+    ap.add_argument("--eb-save-path", type=str, default="./data/eb_csvs")
     ap.add_argument("--bin-factor", type=int, default=7)
     ap.add_argument("--skip-planets", action="store_true")
     ap.add_argument("--skip-ebs", action="store_true")
