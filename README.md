@@ -2,6 +2,8 @@
 
 This repository contains code to train machine learning models to classify planetary transits from TESS light curves.
 
+The code in this repository was used in the Neurips 2022 workshop paper *Discovering Long-period Exoplanets using Deep Learning with Citizen Science Labels*, Shreshth A. Malik, Nora L. Eisner, Chris J. Lintott, Yarin Gal. (TODO add Arxiv link).
+
 ## Data
 
 ### Light Curves and Synthetic Data
@@ -26,8 +28,12 @@ Install the requirements, and login to wandb (for logging): `pip install -r requ
 
 All experimental conditions and hyperparameters are set via command line arguments (for example, you can vary the proportion of synthetic data used to train the network). Use `python src/main.py` to run an experiment.
 
-## Related Work
+## Cite
 
-- [Astronet](https://iopscience.iop.org/article/10.3847/1538-3881/aa9e09/meta)
-- [Ramjet](https://iopscience.iop.org/article/10.3847/1538-3881/abf4c6#ajabf4c6s3)
-- [Planet Hunters Tess](https://academic.oup.com/mnras/article/501/4/4669/6027708#225349447)
+If you found our work useful, please consider citing:
+
+(TODO citation info here)
+
+## Disclaimer
+
+This is research code shared without support or guarantee of quality. Please let us know, however, if there is anything wrong or that could be improved and we will try to solve it.
