@@ -2,7 +2,7 @@
 
 This repository contains code to train machine learning models to classify planetary transits from TESS light curves.
 
-The code in this repository was used in the Neurips 2022 workshop paper *Discovering Long-period Exoplanets using Deep Learning with Citizen Science Labels*, Shreshth A. Malik, Nora L. Eisner, Chris J. Lintott, Yarin Gal. (TODO add Arxiv link).
+The code in this repository was used in the Neurips 2022 workshop paper *Discovering Long-period Exoplanets using Deep Learning with Citizen Science Labels*, Shreshth A. Malik, Nora L. Eisner, Chris J. Lintott, Yarin Gal. [Arxiv](https://arxiv.org/abs/2211.06903).
 
 ## Data
 
@@ -32,7 +32,14 @@ All experimental conditions and hyperparameters are set via command line argumen
 
 If you found our work useful, please consider citing:
 
-(TODO citation info here)
+```
+@article{malik2022discovering,
+  title={Discovering Long-period Exoplanets using Deep Learning with Citizen Science Labels},
+  author={Malik, Shreshth A and Eisner, Nora L and Lintott, Chris J and Gal, Yarin},
+  journal={arXiv preprint arXiv:2211.06903},
+  year={2022}
+}
+```
 
 ## Disclaimer
 
