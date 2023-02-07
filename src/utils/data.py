@@ -720,4 +720,4 @@ if __name__ == "__main__":
     ap.add_argument("--plot-examples", action="store_true")
     args = ap.parse_args()
 
-    test_dataloader()
+    test_dataloader(args)

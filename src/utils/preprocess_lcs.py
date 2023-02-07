@@ -159,7 +159,9 @@ def _read_lc(lc_file):
 if __name__ == "__main__":
     # addqueue -c "preprocess lcs" -m 1 -q planet -s ../shell_scripts/preprocess_lcs.sh
     # manually change which sectors here
-    SECTORS = [39,40,41,42,43]
+    # SECTORS = [39,40,41,42,43]
+    # missing 46,51,52
+    SECTORS = [44,45,47,48,49,50,53,54]
     # SECTORS = list(range(25, 38))
 
     # parse args

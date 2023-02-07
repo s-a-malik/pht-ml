@@ -20,17 +20,21 @@ TRAIN_SECTORS_DEBUG = [10]
 TRAIN_SECTORS_STANDARD = [10,11,12,13,14,15,16,17,18,19,20]
 TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
 TRAIN_SECTORS_ALL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
+TRAIN_SECTORS_NEW = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37]
+
 
 # keep validation and test sets the same
 VAL_SECTORS_DEBUG = [12]
 VAL_SECTORS_STANDARD = [30,31,32,33,34,35]
 VAL_SECTORS_FULL = [30,31,32,33,34,35]
 VAL_SECTORS_ALL = [30,31,32,33,34,35]
+VAL_SECTORS_NEW = [38,39,40,41,42,43]
 
 TEST_SECTORS_DEBUG = [14]
 TEST_SECTORS_STANDARD = [36,37,38]
 TEST_SECTORS_FULL = [36,37,38]
 TEST_SECTORS_ALL = [36,37,38,39,40,41,42,43]
+TEST_SECTORS_NEW = [44,45,47,48,49,50,53,54]    # new test set
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 # SHORTEST_LC = 18900 # binned 7 sector 10-14
@@ -343,5 +347,11 @@ def get_sectors(data_split):
         return VAL_SECTORS_ALL
     elif data_split == "test_all":
         return TEST_SECTORS_ALL
+    elif data_split == "train_new":
+        return TRAIN_SECTORS_NEW
+    elif data_split == "val_new":
+        return VAL_SECTORS_NEW
+    elif data_split == "test_new":
+        return TEST_SECTORS_NEW
     else:
         raise ValueError(f"Invalid data split {data_split}")
