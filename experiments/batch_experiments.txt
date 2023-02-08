@@ -12,8 +12,9 @@
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name new-test-set --batch-size 128 --checkpoint 2fs0ygrj --evaluate --no-cache
 # with label fix
 # train/test on old sectors first for comparison
-
+--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --use-ground-truth --batch-size 256
 # evaluate on new sectors
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name ground-truth-labels --use-ground-truth --batch-size 128 --checkpoint XXX --evaluate --no-cache
 
 #####
 

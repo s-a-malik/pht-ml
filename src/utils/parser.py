@@ -93,6 +93,9 @@ def parse_args():
     parser.add_argument("--plot-examples",
                         action="store_true",
                         help="plot examples from dataloader for debugging (only used for test dataloader)")
+    parser.add_argument("--use-ground-truth",
+                        action="store_true",
+                        help="Fix top volunteer scores with ground truths for training.")
 
     # model config
     parser.add_argument("--model",
