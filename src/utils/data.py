@@ -17,6 +17,8 @@ import torchvision
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import train_test_split
+
 from astropy.table import Table
 
 if __name__ == "__main__":
@@ -48,6 +50,7 @@ class LCData(torch.utils.data.Dataset):
         store_cache=True,
         plot_examples=False,
         use_ground_truth=False,
+        seed=1,
         ):
         """
         Params:
@@ -64,6 +67,7 @@ class LCData(torch.utils.data.Dataset):
         - store_cache (bool): whether to store all the data in RAM in advance
         - plot_examples (bool): whether to plot the light curves for debugging
         - use_ground_truth (bool): whether to use ground truth labels to correct volunteer scores
+        - seed (int): random seed for data splitting if not by sector
         """
         super(LCData, self).__init__()
 
@@ -81,6 +85,7 @@ class LCData(torch.utils.data.Dataset):
         self.preprocessing = preprocessing
         self.plot_examples = plot_examples
         self.use_ground_truth = use_ground_truth
+        self.seed = seed
         
         self.sectors = get_sectors(self.data_split)
 
@@ -94,6 +99,20 @@ class LCData(torch.utils.data.Dataset):
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
         print("total num. LC files found: ", len(self.lc_file_list))
+        # split into train/val/test
+        if "random" in self.data_split:
+            train, test = train_test_split(self.lc_file_list, test_size=0.2, random_state=self.seed)
+            train, val = train_test_split(train, test_size=0.2, random_state=self.seed)
+            if "train" in self.data_split:
+                self.lc_file_list = train
+            elif "val" in self.data_split:
+                self.lc_file_list = val
+            elif "test" in self.data_split:
+                self.lc_file_list = test
+            else:
+                raise ValueError("data_split must contain 'train', 'val', or 'test'")
+            print(f"num. LCs in {self.data_split}: {len(self.lc_file_list)}")
+
 
         ####### Label data
 
@@ -249,7 +268,7 @@ class LCData(torch.utils.data.Dataset):
         Updates the labels_df with ground truth labels
         """
         # load ground truth labels
-        gt_files = glob(f"{self.data_root_path}/top_500_labels/ground_truth*.csv")
+        gt_files = glob(f"{self.data_root_path}/top_500_labels/all_ground_truth*.csv")
         print(f"found {len(gt_files)} ground truth files")
         # add all ground truth labels to one df
         gt_df = pd.concat([pd.read_csv(gt_file) for gt_file in gt_files])
@@ -583,6 +602,7 @@ def get_data_loaders(args):
     data_split = args.data_split
     plot_examples = args.plot_examples
     use_ground_truth = args.use_ground_truth
+    seed = args.seed
 
     # preprocessing = torchvision.transforms.Compose([
     #     # transforms.RemoveOutliersPercent(percent_change=0.15),
@@ -633,7 +653,8 @@ def get_data_loaders(args):
         preprocessing=preprocessing,
         store_cache=cache,
         plot_examples=plot_examples,
-        use_ground_truth=use_ground_truth
+        use_ground_truth=use_ground_truth,
+        seed=seed,
     )
 
     # same amount of synthetics in val set as in train set
@@ -651,7 +672,8 @@ def get_data_loaders(args):
         preprocessing=preprocessing,
         store_cache=cache,
         plot_examples=plot_examples,
-        use_ground_truth=use_ground_truth
+        use_ground_truth=use_ground_truth,
+        seed=seed
     )
 
     # no synthetics in test set
@@ -669,7 +691,8 @@ def get_data_loaders(args):
         preprocessing=preprocessing,
         store_cache=cache,
         plot_examples=plot_examples,
-        use_ground_truth=use_ground_truth
+        use_ground_truth=use_ground_truth,
+        seed=seed
     )
 
     print(f'Size of training set: {len(train_set)}')
