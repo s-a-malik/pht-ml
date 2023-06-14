@@ -87,7 +87,7 @@ def main(args):
         best_file = wandb_best_file.name
     
     # load model
-    model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, scheduler, args.device, best_file)
+    model, optimizer, scheduler, best_epoch, _ = load_checkpoint(model, optimizer, scheduler, args.device, best_file)
 
     # evaluate on all sets
     with torch.no_grad():
