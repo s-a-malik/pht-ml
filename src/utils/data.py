@@ -17,6 +17,8 @@ import torchvision
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import train_test_split
+
 from astropy.table import Table
 
 if __name__ == "__main__":
@@ -47,6 +49,8 @@ class LCData(torch.utils.data.Dataset):
         preprocessing=None,
         store_cache=True,
         plot_examples=False,
+        use_ground_truth=False,
+        seed=1,
         ):
         """
         Params:
@@ -62,6 +66,8 @@ class LCData(torch.utils.data.Dataset):
         - preprocessing (callable): preprocessing to apply to the data (before caching)
         - store_cache (bool): whether to store all the data in RAM in advance
         - plot_examples (bool): whether to plot the light curves for debugging
+        - use_ground_truth (bool): whether to use ground truth labels to correct volunteer scores
+        - seed (int): random seed for data splitting if not by sector
         """
         super(LCData, self).__init__()
 
@@ -78,6 +84,8 @@ class LCData(torch.utils.data.Dataset):
         self.store_cache = store_cache
         self.preprocessing = preprocessing
         self.plot_examples = plot_examples
+        self.use_ground_truth = use_ground_truth
+        self.seed = seed
         
         self.sectors = get_sectors(self.data_split)
 
@@ -91,6 +99,20 @@ class LCData(torch.utils.data.Dataset):
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
         print("total num. LC files found: ", len(self.lc_file_list))
+        # split into train/val/test
+        if "random" in self.data_split:
+            train, test = train_test_split(self.lc_file_list, test_size=0.2, random_state=self.seed)
+            train, val = train_test_split(train, test_size=0.2, random_state=self.seed)
+            if "train" in self.data_split:
+                self.lc_file_list = train
+            elif "val" in self.data_split:
+                self.lc_file_list = val
+            elif "test" in self.data_split:
+                self.lc_file_list = test
+            else:
+                raise ValueError("data_split must contain 'train', 'val', or 'test'")
+            print(f"num. LCs in {self.data_split}: {len(self.lc_file_list)}")
+
 
         ####### Label data
 
@@ -108,6 +130,9 @@ class LCData(torch.utils.data.Dataset):
         print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
         # zero labels
         self.zero_tics = self.labels_df[self.labels_df["maxdb"] == 0]["TIC_ID"].tolist()
+
+        if self.use_ground_truth:
+            self._update_using_ground_truth()
 
         ##### planetary transits 
         if self.synthetic_prob > 0.0:
@@ -237,6 +262,27 @@ class LCData(torch.utils.data.Dataset):
                 plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_transformed_{idx}.png")
 
         return x, y
+
+    def _update_using_ground_truth(self):
+        """
+        Updates the labels_df with ground truth labels
+        """
+        # load ground truth labels
+        gt_files = glob(f"{self.data_root_path}/top_500_labels/all_ground_truth*.csv")
+        print(f"found {len(gt_files)} ground truth files")
+        # add all ground truth labels to one df
+        gt_df = pd.concat([pd.read_csv(gt_file) for gt_file in gt_files])
+        print(f"loaded {len(gt_df)} ground truth labels")
+        merged_df = self.labels_df.merge(gt_df, on=["TIC_ID", "sector"], how="left")
+        merged_df["maxdb"] = np.where(
+            (merged_df["final_score"] == "planet"), 1, 
+            np.where((merged_df["final_score"] == "EB") | (merged_df["final_score"] == "other"), 0, merged_df["maxdb"])
+        )
+        self.labels_df.reset_index(drop=True, inplace=True)
+        merged_df.reset_index(drop=True, inplace=True)
+        print(f"updated {len(merged_df[merged_df['maxdb'] != self.labels_df['maxdb']])} labels")
+        # update labels_df
+        self.labels_df["maxdb"] = merged_df["maxdb"]
 
 
     def _get_eb_data(self):
@@ -555,6 +601,8 @@ def get_data_loaders(args):
     pin_memory = True
     data_split = args.data_split
     plot_examples = args.plot_examples
+    use_ground_truth = args.use_ground_truth
+    seed = args.seed
 
     # preprocessing = torchvision.transforms.Compose([
     #     # transforms.RemoveOutliersPercent(percent_change=0.15),
@@ -604,7 +652,9 @@ def get_data_loaders(args):
         transform=training_transform,
         preprocessing=preprocessing,
         store_cache=cache,
-        plot_examples=plot_examples
+        plot_examples=plot_examples,
+        use_ground_truth=use_ground_truth,
+        seed=seed,
     )
 
     # same amount of synthetics in val set as in train set
@@ -621,7 +671,9 @@ def get_data_loaders(args):
         transform=val_transform,
         preprocessing=preprocessing,
         store_cache=cache,
-        plot_examples=plot_examples
+        plot_examples=plot_examples,
+        use_ground_truth=use_ground_truth,
+        seed=seed
     )
 
     # no synthetics in test set
@@ -638,7 +690,9 @@ def get_data_loaders(args):
         transform=test_transform,
         preprocessing=preprocessing,
         store_cache=cache,
-        plot_examples=plot_examples
+        plot_examples=plot_examples,
+        use_ground_truth=use_ground_truth,
+        seed=seed
     )
 
     print(f'Size of training set: {len(train_set)}')
@@ -718,6 +772,7 @@ if __name__ == "__main__":
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--plot-examples", action="store_true")
+    ap.add_argument("--use-ground-truth", action="store_true")
     args = ap.parse_args()
 
-    test_dataloader()
+    test_dataloader(args)

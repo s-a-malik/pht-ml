@@ -57,8 +57,8 @@ class MedianAtZero(object):
 
 
 class Cutoff(object):
-    """Restrict LC data to a certain length. Cut start or end randomly
-    TODO we could also pad to the median length
+    """Restrict LC data to a certain length. Cut start or end randomly, or pad with zeros.
+    N.B. this needs to be done after normalisation.
     """
     def __init__(self, length=2700):
         self.length = length
@@ -71,7 +71,10 @@ class Cutoff(object):
             start = np.random.randint(0, len(x) - self.length)
             return x[start:start+self.length]
         else:
-            raise ValueError(f"Length of light curve is {len(x)} but should be minimum {self.length}")
+            # add zeros to start and end in random porportions
+            start = np.random.randint(0, self.length - len(x))
+            end = self.length - len(x) - start
+            return np.pad(x, (start, end), 'constant', constant_values=(0, 0))              
 
 
 class ImputeNans(object):
