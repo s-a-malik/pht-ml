@@ -386,7 +386,7 @@ def init_optim(args, model):
     if args.scheduler == "constant":
         scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=args.scheduler_warmup)
     elif args.scheduler == "plateau":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=10, verbose=True)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=20, verbose=True)
     elif args.scheduler == "cosine":
         scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=args.scheduler_warmup, num_training_steps=args.epochs)
     elif args.scheduler == "exp":

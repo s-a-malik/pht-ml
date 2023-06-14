@@ -47,7 +47,7 @@ def main(args):
     print(f"Number of model parameters: {num_params}")
     print(model)
     print(optimizer)
-    proint(scheduler)
+    print(scheduler)
     print(criterion)
 
     # files for checkpoints
