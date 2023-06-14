@@ -129,6 +129,13 @@ def parse_args():
                         type=str,
                         default="adamw",
                         help="optimizer (adam, sgd, adamw)")
+    parser.add_argument("--scheduler",
+                        type=str,
+                        default="constant")
+    parser.add_argument("--scheduler-warmup",
+                        type=int,
+                        default=0,
+                        help="Number of epochs for linear warmup of learning rate.")
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",

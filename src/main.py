@@ -42,11 +42,12 @@ def main(args):
 
     # initialise models, optimizers, data
     model = init_model(args)
-    optimizer, criterion = init_optim(args, model)
+    optimizer, criterion, scheduler = init_optim(args, model)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
     print(f"Number of model parameters: {num_params}")
     print(model)
     print(optimizer)
+    proint(scheduler)
     print(criterion)
 
     # files for checkpoints
@@ -63,7 +64,7 @@ def main(args):
             run_path=f"s-a-malik/{args.wandb_project}/{args.checkpoint}",
             root=model_path)
         # load state dict
-        model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, args.device,
+        model, optimizer, scheduler, best_epoch, _ = load_checkpoint(model, optimizer, scheduler, args.device,
                                                  wandb_best_file.name)
 
     # get data
@@ -80,13 +81,13 @@ def main(args):
 
     # train
     if not args.evaluate:
-        model, epoch = training_run(args, model, optimizer, criterion, train_loader, val_loader)
+        model, epoch = training_run(args, model, optimizer, scheduler, criterion, train_loader, val_loader)
     else:
         epoch = None
         best_file = wandb_best_file.name
     
     # load model
-    model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, args.device, best_file)
+    model, optimizer, best_epoch, _ = load_checkpoint(model, optimizer, scheduler, args.device, best_file)
 
     # evaluate on all sets
     with torch.no_grad():

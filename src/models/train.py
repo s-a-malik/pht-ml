@@ -15,6 +15,8 @@ import numpy as np
 
 from sklearn.metrics import roc_auc_score
 
+from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup, get_constant_schedule_with_warmup
+
 from utils import utils
 from utils.data import SHORTEST_LC
 from models import nets
@@ -178,12 +180,13 @@ def evaluate(model, optimizer, criterion, data_loader, device, task="train", sav
         return avg_loss.avg, acc, f1, prec, rec
 
 
-def training_run(args, model, optimizer, criterion, train_loader, val_loader):
+def training_run(args, model, optimizer, scheduler, criterion, train_loader, val_loader):
     """Run training loop
     Params:
     - args (argparse.Namespace): parsed command line arguments
     - model (nn.Module): model to train
     - optimizer (nn.optim): optimizer tied to model weights.
+    - scheduler (nn.optim.lr_scheduler): learning rate scheduler
     - criterion: loss function
     - train_loader (torch.utils.data.DataLoader): training data loader
     - val_loader (torch.utils.data.DataLoader): validation data loader
@@ -207,6 +210,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
         "state_dict": model.state_dict(),
         "best_loss": best_loss,
         "optimizer": optimizer.state_dict(),
+        "scheduler": scheduler.state_dict(),
         "args": vars(args)
     }
     utils.save_checkpoint(checkpoint_dict, is_best=True)
@@ -238,6 +242,11 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 device=args.device,
                 task="val",
                 save_examples=save_examples)
+            # scheduler step
+            if args.scheduler == "plateau":
+                scheduler.step(val_loss)
+            else:
+                scheduler.step()
 
             is_best = val_loss < best_loss
             if is_best:
@@ -256,6 +265,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                     "val/rec": val_rec,
                     "val/loss": val_loss,
                     "epoch": epoch,
+                    "lr": scheduler.get_last_lr()[0]
                 })
 
             # save checkpoint
@@ -264,6 +274,7 @@ def training_run(args, model, optimizer, criterion, train_loader, val_loader):
                 "state_dict": model.state_dict(),
                 "best_loss": best_loss,
                 "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
                 "args": vars(args)
             }
             utils.save_checkpoint(checkpoint_dict, is_best)
@@ -354,13 +365,14 @@ def init_model(args):
 
 
 def init_optim(args, model):
-    """Initialize optimizer and loss function
+    """Initialize optimizer, scheduler and loss function
     Params:
     - args (argparse.Namespace): parsed command line arguments
     - model (nn.Module): initialised model
     Returns:
     - optimizer (nn.optim): initialised optimizer
     - criterion: initialised loss function
+    - scheduler: initialised scheduler
     """
     if args.optimizer == "adam":
         optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
@@ -371,6 +383,17 @@ def init_optim(args, model):
     else:
         raise NameError(f"Unknown optimizer {args.optimizer}")
     
+    if args.scheduler == "constant":
+        scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=args.scheduler_warmup)
+    elif args.scheduler == "plateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=10, verbose=True)
+    elif args.scheduler == "cosine":
+        scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=args.scheduler_warmup, num_training_steps=args.epochs)
+    elif args.scheduler == "exp":
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+    else:
+        raise NameError(f"Unknown scheduler {args.scheduler}")
+
     if args.loss == "BCE":
         criterion = torch.nn.BCEWithLogitsLoss()
     elif args.loss == "BCE_weighted":
@@ -380,4 +403,4 @@ def init_optim(args, model):
     else:
         raise NameError(f"Unknown loss function {args.loss}")
 
-    return optimizer, criterion
+    return optimizer, criterion, scheduler

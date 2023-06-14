@@ -80,23 +80,28 @@ def get_sectors(data_split):
         raise ValueError(f"Invalid data split {data_split}")
 
 
-def load_checkpoint(model, optimizer, device, checkpoint_file: str):
+def load_checkpoint(model, optimizer, scheduler, device, checkpoint_file: str):
     """Loads a model checkpoint.
     Params:
     - model (nn.Module): initialised model
     - optimizer (nn.optim): initialised optimizer
+    - scheduler (nn.optim.lr_scheduler): initialised scheduler
     - device (torch.device): device model is on
     Returns:
     - model with loaded state dict
     - optimizer with loaded state dict
+    - scheduler with loaded state dict
+    - epoch (int): epoch checkpoint was saved at
+    - best_loss (float): best loss seen so far
     """
     checkpoint = torch.load(checkpoint_file, map_location=device)
     model.load_state_dict(checkpoint["state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer"])
+    scheduler.load_state_dict(checkpoint["scheduler"])
     print(f"Loaded {checkpoint_file}, "
           f"trained to epoch {checkpoint['epoch']+1} with best loss {checkpoint['best_loss']}")
 
-    return model, optimizer, checkpoint["epoch"]+1, checkpoint["best_loss"]
+    return model, optimizer, scheduler, checkpoint["epoch"]+1, checkpoint["best_loss"]
 
 
 def save_checkpoint(checkpoint_dict: dict, is_best: bool):
