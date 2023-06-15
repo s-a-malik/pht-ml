@@ -265,7 +265,7 @@ def training_run(args, model, optimizer, scheduler, criterion, train_loader, val
                     "val/rec": val_rec,
                     "val/loss": val_loss,
                     "epoch": epoch,
-                    "lr": scheduler.get_last_lr()[0]
+                    "lr": scheduler._last_lr[0]
                 })
 
             # save checkpoint
