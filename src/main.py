@@ -205,7 +205,7 @@ def inference(args):
         raise ValueError("Must provide checkpoint to load model from for inference mode")
 
     # get data
-    test_loader = get_data_loaders(args, inference_only=True)
+    test_loader = get_data_loaders(args, inference_mode=True)
     # add to wandb config
     wandb.config.num_params = num_params     
     wandb.config.num_test_examples = len(test_loader.dataset)

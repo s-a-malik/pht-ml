@@ -602,7 +602,7 @@ def collate_fn_inference(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
         
-def get_data_loaders(args, inference_only=False):
+def get_data_loaders(args, inference_mode=False):
     """Get data loaders given argparse arguments.
     inference_only (bool): whether to use the test set for inference only (no labels)
     """
@@ -638,7 +638,7 @@ def get_data_loaders(args, inference_only=False):
     # ])
     preprocessing = None
 
-    if inference_only:
+    if inference_mode:
         test_transform = torchvision.transforms.Compose([
             transforms.NormaliseFlux(),
             transforms.MedianAtZero(),
@@ -661,7 +661,8 @@ def get_data_loaders(args, inference_only=False):
             store_cache=cache,
             plot_examples=plot_examples,
             use_ground_truth=use_ground_truth,
-            seed=seed
+            seed=seed,
+            inference_mode=True
         )
         test_dataloader = torch.utils.data.DataLoader(test_set,
                                             batch_size=batch_size,
