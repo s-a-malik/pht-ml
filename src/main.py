@@ -231,7 +231,7 @@ def inference(args):
             results["classes"] += x["class"]
             t.update()
 
-    test_df = pd.DataFrame({"prob": np.array(results["probs"]), "class": test_results["classes"], "tic": test_results["tics"], "sec": test_results["secs"]})
+    test_df = pd.DataFrame({"prob": np.array(results["probs"]), "class": results["classes"], "tic": results["tics"], "sec": results["secs"]})
     wandb.log({"test/results": wandb.Table(dataframe=test_df)})
 
     # finish wandb
