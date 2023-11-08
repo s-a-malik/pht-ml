@@ -100,8 +100,10 @@ def load_checkpoint(model, optimizer, scheduler, device, checkpoint_file: str):
     """
     checkpoint = torch.load(checkpoint_file, map_location=device)
     model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
-    scheduler.load_state_dict(checkpoint["scheduler"])
+    if checkpoint.get("scheduler", None) is not None:
+        scheduler.load_state_dict(checkpoint["scheduler"])
+    if checkpoint.get("optimizer", None) is not None:
+        optimizer.load_state_dict(checkpoint["optimizer"])
     print(f"Loaded {checkpoint_file}, "
           f"trained to epoch {checkpoint['epoch']+1} with best loss {checkpoint['best_loss']}")
 

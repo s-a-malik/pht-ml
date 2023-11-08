@@ -673,115 +673,115 @@ def get_data_loaders(args, inference_only=False):
 
         return test_dataloader
     else:
-    # composed transform
-    training_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
-        transforms.MedianAtZero(),
-        transforms.MirrorFlip(prob=aug_prob),
-        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
-        transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length),
-        transforms.ToFloatTensor()
-    ])
+        # composed transform
+        training_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.MirrorFlip(prob=aug_prob),
+            transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+            transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
 
-    # test tranforms - do not randomly delete or permute
-    val_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
-        transforms.MedianAtZero(),
-        transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length),
-        transforms.ToFloatTensor()
-    ])
+        # test tranforms - do not randomly delete or permute
+        val_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
 
-    test_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
-        transforms.MedianAtZero(),
-        transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length),
-        transforms.ToFloatTensor()
-    ])
+        test_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
 
-    train_set = LCData(
-        data_root_path=data_root_path,
-        data_split=f"train_{data_split}",
-        bin_factor=bin_factor,
-        synthetic_prob=synthetic_prob,
-        eb_prob=eb_prob,
-        vol_negs_only=vol_negs_only,
-        lc_noise_prob=lc_noise_prob,
-        min_snr=min_snr,
-        single_transit_only=not multi_transit,
-        transform=training_transform,
-        preprocessing=preprocessing,
-        store_cache=cache,
-        plot_examples=plot_examples,
-        use_ground_truth=use_ground_truth,
-        seed=seed,
-    )
+        train_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"train_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=synthetic_prob,
+            eb_prob=eb_prob,
+            vol_negs_only=vol_negs_only,
+            lc_noise_prob=lc_noise_prob,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=training_transform,
+            preprocessing=preprocessing,
+            store_cache=cache,
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,
+            seed=seed,
+        )
 
-    # same amount of synthetics in val set as in train set
-    val_set = LCData(
-        data_root_path=data_root_path,
-        data_split=f"val_{data_split}",
-        bin_factor=bin_factor,
-        synthetic_prob=synthetic_prob,
-        eb_prob=eb_prob,
-        vol_negs_only=False,
-        lc_noise_prob=0.0,
-        min_snr=min_snr,
-        single_transit_only=not multi_transit,
-        transform=val_transform,
-        preprocessing=preprocessing,
-        store_cache=cache,
-        plot_examples=plot_examples,
-        use_ground_truth=use_ground_truth,
-        seed=seed
-    )
+        # same amount of synthetics in val set as in train set
+        val_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"val_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=synthetic_prob,
+            eb_prob=eb_prob,
+            vol_negs_only=False,
+            lc_noise_prob=0.0,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=val_transform,
+            preprocessing=preprocessing,
+            store_cache=cache,
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,
+            seed=seed
+        )
 
-    # no synthetics in test set
-    test_set = LCData(
-        data_root_path=data_root_path,
-        data_split=f"test_{data_split}",
-        bin_factor=bin_factor,
-        synthetic_prob=synthetic_prob if test_synths else 0.0,
-        eb_prob=eb_prob if test_synths else 0.0,
-        vol_negs_only=False,
-        lc_noise_prob=0.0,
-        min_snr=min_snr,
-        single_transit_only=not multi_transit,
-        transform=test_transform,
-        preprocessing=preprocessing,
-        store_cache=cache,
-        plot_examples=plot_examples,
-        use_ground_truth=use_ground_truth,
-        seed=seed
-    )
+        # no synthetics in test set
+        test_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"test_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=synthetic_prob if test_synths else 0.0,
+            eb_prob=eb_prob if test_synths else 0.0,
+            vol_negs_only=False,
+            lc_noise_prob=0.0,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=test_transform,
+            preprocessing=preprocessing,
+            store_cache=cache,
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,
+            seed=seed
+        )
 
-    train_dataloader = torch.utils.data.DataLoader(train_set,
-                                                batch_size=batch_size,
-                                                shuffle=True,
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
-    val_dataloader = torch.utils.data.DataLoader(val_set,
-                                                batch_size=batch_size,
-                                                shuffle=True,               # shuffle val set as well to get different batches for prediction saving
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
-    test_dataloader = torch.utils.data.DataLoader(test_set,
-                                                batch_size=batch_size,
-                                                shuffle=False,
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
-    
-    print(f'Size of training set: {len(train_set)}')
-    print(f'Size of val set: {len(val_set)}')
-    print(f'Size of test set: {len(test_set)}')
+        train_dataloader = torch.utils.data.DataLoader(train_set,
+                                                    batch_size=batch_size,
+                                                    shuffle=True,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    collate_fn=collate_fn)
+        val_dataloader = torch.utils.data.DataLoader(val_set,
+                                                    batch_size=batch_size,
+                                                    shuffle=True,               # shuffle val set as well to get different batches for prediction saving
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    collate_fn=collate_fn)
+        test_dataloader = torch.utils.data.DataLoader(test_set,
+                                                    batch_size=batch_size,
+                                                    shuffle=False,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    collate_fn=collate_fn)
+        
+        print(f'Size of training set: {len(train_set)}')
+        print(f'Size of val set: {len(val_set)}')
+        print(f'Size of test set: {len(test_set)}')
 
-    return train_dataloader, val_dataloader, test_dataloader
+        return train_dataloader, val_dataloader, test_dataloader
 
 
 def test_dataloader(args):
