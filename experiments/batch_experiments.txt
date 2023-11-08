@@ -7,7 +7,7 @@
 # nov 2023 test on new sectors
 #--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
 # then get checkpoint and eval on new sector without labels
---module-test inference --no-cache --evaluate --checkpoint 1m8b2wlj --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 55 --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 256
+--module-test inference --no-cache --evaluate --checkpoint 1m8b2wlj --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 54 --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 256
 
 # lr schedulers
 #--optimizer sgd --scheduler cosine --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1

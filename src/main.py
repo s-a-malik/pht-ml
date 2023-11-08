@@ -219,7 +219,7 @@ def inference(args):
             # unpack batch from dataloader
             x = batch
             flux = x["flux"]
-            flux = flux.to(device)
+            flux = flux.to(args.device)
             logits = model(flux)
             prob = torch.sigmoid(logits)
             # collect the model outputs
