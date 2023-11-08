@@ -4,18 +4,48 @@
 # for evaluation use --evaluate --no-cache --checkpoint <RUN_ID>
 # run command: addqueue -c "comment" -m 7.5 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 
+# nov 2023 test on new sectors
+--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+# then get checkpoint and eval on new sector without labels
+--module-test inference --no-cache --evaluate --checkpoint 1m8b2wlj --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 55 --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 256
+
+# lr schedulers
+#--optimizer sgd --scheduler cosine --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer sgd --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer sgd --scheduler plateau --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer sgd --scheduler exp --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer adamw --scheduler cosine --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer adamw --scheduler plateau --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--optimizer adamw --scheduler exp --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split debug --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+
+
+# sectors test june 2023
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split random_all --model resnet_big --experiment-name sectors --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split y1 --model resnet_big --experiment-name sectors --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split y2 --model resnet_big --experiment-name sectors --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split y3 --model resnet_big --experiment-name sectors --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 1
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split random_all --model resnet_big --experiment-name sectors --use-ground-truth --batch-size 256 --epochs 1000 --patience 300 --seed 2
+
+
 ##### new test set Jan 2023
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name new-test-set --batch-size 256 --checkpoint 3o4txpuz --evaluate --no-cache
 # train on old val set as well
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name new-test-set --batch-size 128
 # evaluarte
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name new-test-set --batch-size 128 --checkpoint 2fs0ygrj --evaluate --no-cache
-# with label fix
+### with label fix
 # train/test on old sectors first for comparison
---num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --use-ground-truth --batch-size 256
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --use-ground-truth --batch-size 256 --epochs 5000 --patience 1000
+# evaluate without ground truth for fair comparison
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --batch-size 128 --checkpoint 1m8b2wlj --evaluate --no-cache
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --batch-size 128 --checkpoint 2puaev0s --evaluate --no-cache
 # evaluate on new sectors
-#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name ground-truth-labels --use-ground-truth --batch-size 128 --checkpoint XXX --evaluate --no-cache
-
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name ground-truth-labels --batch-size 128 --checkpoint 1m8b2wlj --evaluate --no-cache
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split new --model resnet_big --experiment-name ground-truth-labels --batch-size 128 --checkpoint 2puaev0s --evaluate --no-cache
+# evaluate on synth
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --batch-size 256 --checkpoint 1m8b2wlj --evaluate --no-cache --test-synths
+#--num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name ground-truth-labels --batch-size 256 --checkpoint 2puaev0s --evaluate --no-cache --test-synths
 #####
 
 # --multi-transit --num-workers 4
@@ -91,7 +121,4 @@
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 2
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 3
 #--num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name resnet-big-ensemble --batch-size 256 --seed 4
-
-
-
 

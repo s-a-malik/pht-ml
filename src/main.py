@@ -4,6 +4,8 @@ run on cluster with GPU e.g.:  addqueue -c "comment" -m 4 -n 1x4 -q gpulong -s .
 """
 import os
 import wandb
+from tqdm import trange
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -13,7 +15,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
 
 from utils.utils import load_checkpoint, bce_loss_numpy
 from utils.parser import parse_args
-from utils.data import get_data_loaders
+from utils.data import get_data_loaders, LCData
 from models.train import training_run, evaluate, init_model, init_optim
 
 
@@ -22,10 +24,6 @@ def main(args):
     # random seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-
-    # init directories
-    results_path = f"{args.log_dir}/results"
-    os.makedirs(results_path, exist_ok=True)
 
     # init wandb
     os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
@@ -164,6 +162,83 @@ def main(args):
     run.finish()
 
 
+def inference(args):
+    """
+    Inference on light curves without labels.
+    """
+    
+    # random seeds
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+
+    # init wandb
+    os.environ['WANDB_MODE'] = 'offline' if args.wandb_offline else 'online' 
+    # change artifact cache directory to scratch
+    os.environ['WANDB_CACHE_DIR'] = os.getenv('SCRATCH_DIR', './')
+    job_type = "eval" if args.evaluate else "train"
+    run = wandb.init(entity=args.wandb_entity,
+                     project=args.wandb_project,
+                     group=args.experiment_name,
+                     job_type=job_type,
+                     settings=wandb.Settings(start_method="fork"),   # this is to prevent InitStartError
+                     save_code=True)
+    wandb.config.update(args)
+
+    # initialise models, optimizers, data
+    model = init_model(args)
+    optimizer, criterion, scheduler = init_optim(args, model)
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)  # number of model parameters
+
+    # load previous state
+    if args.checkpoint:
+        model_path = f"{args.log_dir}/checkpoints/{args.checkpoint}"
+        os.makedirs(model_path, exist_ok=True)
+        # restore from wandb
+        wandb_best_file = wandb.restore(
+            "best.pth.tar",
+            run_path=f"s-a-malik/{args.wandb_project}/{args.checkpoint}",
+            root=model_path)
+        # load state dict
+        model, optimizer, scheduler, best_epoch, _ = load_checkpoint(model, optimizer, scheduler, args.device,
+                                                 wandb_best_file.name)
+    else:
+        raise ValueError("Must provide checkpoint to load model from for inference mode")
+
+    # get data
+    test_loader = get_data_loaders(args, inference_only=True)
+    # add to wandb config
+    wandb.config.num_params = num_params     
+    wandb.config.num_test_examples = len(test_loader.dataset)
+    wandb.config.test_sectors = test_loader.dataset.sectors
+
+    results = defaultdict(list)
+    model.eval()
+
+    with trange(len(test_loader)) as t:
+        for i, batch in enumerate(test_loader):
+            # unpack batch from dataloader
+            x = batch
+            flux = x["flux"]
+            flux = flux.to(device)
+            logits = model(flux)
+            prob = torch.sigmoid(logits)
+            # collect the model outputs
+            prob = prob.detach().cpu().numpy()
+            prob = np.squeeze(prob)
+            results["probs"] += prob.tolist()
+            results["tics"] += x["tic"].tolist()
+            results["secs"] += x["sec"].tolist()
+            results["classes"] += x["class"]
+            t.update()
+
+    test_df = pd.DataFrame({"prob": np.array(results["probs"]), "class": test_results["classes"], "tic": test_results["tics"], "sec": test_results["secs"]})
+    wandb.log({"test/results": wandb.Table(dataframe=test_df)})
+
+    # finish wandb
+    run.finish()
+
+
+
 if __name__ == "__main__":
     args = parse_args()
     # TODO experiment yaml config file instead?
@@ -177,5 +252,8 @@ if __name__ == "__main__":
         print("\nPLOTTING LC")
         from utils.plot_lc import plot_lc_test
         plot_lc_test(args)
+    elif args.module_test == "inference":
+        print("\nINFERENCE")
+        inference(args)
     else:
         main(args)
