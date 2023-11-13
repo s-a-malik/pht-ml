@@ -80,6 +80,7 @@ def main(args):
     # train
     if not args.evaluate:
         model, epoch = training_run(args, model, optimizer, scheduler, criterion, train_loader, val_loader)
+        print('Finished Training')
     else:
         epoch = None
         best_file = wandb_best_file.name

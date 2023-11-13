@@ -4,6 +4,7 @@ Utility functions and classes for model training and evaluation.
 
 import time
 from collections import defaultdict
+from functools import partial
 
 from tqdm.autonotebook import trange
 
@@ -20,6 +21,7 @@ from transformers import get_linear_schedule_with_warmup, get_cosine_schedule_wi
 from utils import utils
 from utils.data import SHORTEST_LC
 from models import nets
+from models.bi_tempered_loss import bi_tempered_logistic_loss
 
 def evaluate(model, optimizer, criterion, data_loader, device, task="train", save_examples=-1):
     """Run one batch through model
@@ -400,6 +402,8 @@ def init_optim(args, model):
         criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
     elif args.loss == "MSE":
         criterion = torch.nn.MSELoss()
+    elif args.loss == "bi-tempered":
+        criterion = partial(bi_tempered_logistic_loss, t1=0.2, t2=1.0)
     else:
         raise NameError(f"Unknown loss function {args.loss}")
 
