@@ -239,7 +239,7 @@ class ResNetBiggerBin7(nn.Module):
     """
 
     def __init__(self, input_dim=2700, output_dim=1, dropout=0.1):
-        super(ResNetBigBin7, self).__init__()
+        super(ResNetBiggerBin7, self).__init__()
 
         self.input_dim = input_dim
         self.output_dim = output_dim
