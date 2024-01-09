@@ -162,7 +162,8 @@ if __name__ == "__main__":
     # SECTORS = [39,40,41,42,43]
     # missing 46,51,52
     # SECTORS = [44,45,47,48,49,50,53,54]
-    SECTORS = [55,56,57]    # no labels Nov 2023
+    # SECTORS = [55,56,57]    # no labels Nov 2023
+    SECTORS = [58,59,60,61,62,63,64,65] # new ones
     # SECTORS = list(range(25, 38))
 
     # parse args

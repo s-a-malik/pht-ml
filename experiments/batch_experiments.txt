@@ -4,13 +4,22 @@
 # for evaluation use --evaluate --no-cache --checkpoint <RUN_ID>
 # run command: addqueue -c "comment" -m 7.5 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 
+# jan 2024 train all 
+--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+# bigger model
+#--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_bigger --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+
 # nov 2023 test on new sectors
---optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
 # try bi-tempered loss
-#--loss bi-tempered --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+#--loss bi-tempered --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
 
 # then get checkpoint and eval on new sector without labels
+# standard, trained on all 3hf52pes/normal_131123, trained on old all 1m8b2wlj
+#--module-test inference --no-cache --evaluate --checkpoint 1m8b2wlj --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 55_56_57 --model resnet_big --experiment-name unseen-test --use-ground-truth --batch-size 256
+# bi-tempered trained on all 
 #--module-test inference --no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 55_56_57 --model resnet_big --experiment-name unseen-test --use-ground-truth --batch-size 256
+
 
 # lr schedulers
 #--optimizer sgd --scheduler cosine --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name lr-scheduler --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
