@@ -6,9 +6,13 @@
 # or cmbgpu with up to 59GB memory total (30GB max for gpulong)
 
 # jan 2024 train all 
---optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
+--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all_old --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
 # bigger model
-#--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_bigger --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_bigger --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
+# then test using no ground truth labels
+#--no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0124_all --model resnet_big --experiment-name train-all --batch-size 256
+
 
 # nov 2023 test on new sectors
 #--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 1123_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1

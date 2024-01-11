@@ -755,7 +755,7 @@ def get_data_loaders(args, inference_mode=False):
             preprocessing=preprocessing,
             store_cache=False,  # don't store cache for test set
             plot_examples=plot_examples,
-            use_ground_truth=use_ground_truth,
+            use_ground_truth=use_ground_truth,  # TODO should really keep this and val as False
             seed=seed
         )
 
