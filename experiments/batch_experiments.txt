@@ -5,13 +5,41 @@
 # run command: addqueue -c "comment" -m 7.5 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 # or cmbgpu with up to 59GB memory total (30GB max for gpulong)
 
+# feb 2024 train all and test on more sectors
+# train a new one on all up to 54 and test on 55-65
+--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+# test the one trained to 43, test 44-54 (new split 1r292upg) on 55-65
+--no-cache --evaluate --checkpoint 1r292upg --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+# test new one
+#--no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+
+
 # jan 2024 train all 
---optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
---optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all_old --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 300 --seed 1
+# then test using no ground truth labels # 2gl40hi4 is trained on all, trained on old all 1m8b2wlj
+#--no-cache --evaluate --checkpoint 2gl40hi4 --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0124_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 1m8b2wlj --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0124_all --model resnet_big --experiment-name train-all --batch-size 256
 # bigger model
---optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_bigger --experiment-name train-all --use-ground-truth --batch-size 64 --epochs 1000 --patience 300 --seed 1
-# then test using no ground truth labels
-#--no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0124_all --model resnet_big --experiment-name train-all --batch-size 256
+#--optimizer adamw --scheduler constant --scheduler-warmup 10 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_bigger --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+# train on all no warmup
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all_old --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+# best is weight decay 0
+#--weight-decay 0.0 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0124_all_old --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 100 --seed 1
+
+#--weight-decay 0.0 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 1000 --patience 100 --seed 1
+
+# test
+#--no-cache --evaluate --checkpoint 3565227x --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint hc3ywnyh --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0124_all_old --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 3buikx6z --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split all --model resnet_big --experiment-name train-all --batch-size 256
+
+# weight decay search
+#--weight-decay 0.1 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--weight-decay 0.2 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--weight-decay 0.05 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--weight-decay 0.0 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
 
 
 # nov 2023 test on new sectors

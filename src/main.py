@@ -125,6 +125,10 @@ def main(args):
                     "tic_inj": val_results["tic_injs"], "snr": val_results["snrs"], "duration": val_results["durations"], "period": val_results["periods"], "depth": val_results["depths"],
                     "eb_prim_depth": val_results["eb_prim_depths"], "eb_sec_depth": val_results["eb_sec_depths"], "eb_period": val_results["eb_periods"],
                     "tic_noise": val_results["tic_noises"]})
+    # combined scores
+    val_df['model**2+vol**2'] = val_df["prob"]**2 + val_df["target"]**2
+    val_df['max(model,vol)'] = val_df[["prob", "target"]].max(axis=1)
+    val_df['model+vol'] = val_df["prob"] + val_df["target"]
     test_probs = np.array(test_results["probs"])
     test_targets = np.array(test_results["targets"])
     test_bce_losses = bce_loss_numpy(test_probs, test_targets)
@@ -134,6 +138,10 @@ def main(args):
                     "tic_inj": test_results["tic_injs"], "snr": test_results["snrs"], "duration": test_results["durations"], "period": test_results["periods"], "depth": test_results["depths"],
                     "eb_prim_depth": test_results["eb_prim_depths"], "eb_sec_depth": test_results["eb_sec_depths"], "eb_period": test_results["eb_periods"],
                     "tic_noise": test_results["tic_noises"]})
+    # combined scores
+    test_df['model**2+vol**2'] = test_df["prob"]**2 + test_df["target"]**2
+    test_df['max(model,vol)'] = test_df[["prob", "target"]].max(axis=1)
+    test_df['model+vol'] = test_df["prob"] + test_df["target"]
     wandb.log({
         "train_best/loss": train_loss,
         "train_best/acc": train_acc,
