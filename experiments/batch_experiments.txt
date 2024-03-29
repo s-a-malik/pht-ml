@@ -2,16 +2,76 @@
 # each line beginning with - is an experiment.
 # for debugging/testing use --no-cache --wandb-offline --debug
 # for evaluation use --evaluate --no-cache --checkpoint <RUN_ID>
+# for test synths use --test-synths, for train with only synth use --vol-negs-only
 # run command: addqueue -c "comment" -m 7.5 -n 1x4 -q gpulong -s ../shell_scripts/run_batch_experiments.sh
 # or cmbgpu with up to 59GB memory total (30GB max for gpulong)
 
+# 27 mar. best is no synth - try no weight decay, cosine, dropout
+#--optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+#--optimizer adamw --dropout 0.0 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.01 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+# with ebs
+#--optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+#--optimizer adamw --dropout 0.0 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.01 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+
+# TO RUN eval of above
+--no-cache --evaluate --checkpoint 27f78ltz --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256
+--no-cache --evaluate --checkpoint fsesrm51 --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256
+--no-cache --evaluate --checkpoint ogd9yc4h --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256
+--no-cache --evaluate --checkpoint 1efnsr2q --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256
+
+# test on synth
+#--no-cache --evaluate --checkpoint 21j66f2c --optimizer adamw --scheduler constant --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256 --test-synths
+# TO RUN (probs only need to do for the best one)
+#--no-cache --evaluate --checkpoint 27f78ltz --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256 --test-synths
+#--no-cache --evaluate --checkpoint XXX --optimizer adamw --dropout 0.0 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256 --test-synths
+#--no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256
+#--no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all-2703 --batch-size 256
+
+
+# mar 2024 train all and test on more sectors different synthetic datas use --vol-negs-only for synth
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name synths-2003 --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name synths-2003 --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --vol-negs-only --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name synths-2003 --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+# eval 
+#--no-cache --evaluate --checkpoint 2l3cl9qw --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name synths-2003 --batch-size 256
+#--no-cache --evaluate --checkpoint 39n9gkla --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name synths-2003 --batch-size 256
+#--no-cache --evaluate --checkpoint 21j66f2c --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name synths-2003 --batch-size 256
+# train on all sectors with no weight decay, cosine scheduler, dropout
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --dropout 0.0 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+#--optimizer adamw --dropout 0.05 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+# min snr should be 1 probs! 
+#--optimizer adamw --min-snr 1.0 --dropout 0.1 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+#--optimizer adamw --min-snr 3.0 --dropout 0.1 --scheduler cosine --scheduler-warmup 0 --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 500 --patience 200 --seed 1
+
+# eval
+#--no-cache --evaluate --checkpoint 19zu4jc1 --optimizer adamw --scheduler constant --scheduler-warmup 0  --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 3g9rfgjz --optimizer adamw --scheduler cosine --scheduler-warmup 0  --weight-decay 0.0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+# eval dropout and min snr 
+#--no-cache --evaluate --checkpoint 3ra3ewxn --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 2nlihs5s --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 38ugnew4 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 1u2f29vn --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+
+
+# test, synths too TODO use --test-synths
+#--no-cache --evaluate --checkpoint 292uxdk3 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.3 --eb-prob 0.3 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name test-synth --batch-size 256 --test-synths
+
+
+# test original model (trained up ot 35, test 36-43) on 55-65 --checkpoint 3buikx6z
+# TODO this is a bad model, try a different one 3565227x 0 weight decay. 1m8b2wlj original checkpoint
+#--no-cache --evaluate --checkpoint 1m8b2wlj --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 3565227x --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+
+
 # feb 2024 train all and test on more sectors
 # train a new one on all up to 54 and test on 55-65
---optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
+#--optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.1 --eb-prob 0.1 --lc-noise-prob 0.1 --aug-prob 0.1 --data-split 0224_all --model resnet_big --experiment-name train-all --use-ground-truth --batch-size 128 --epochs 300 --patience 100 --seed 1
 # test the one trained to 43, test 44-54 (new split 1r292upg) on 55-65
---no-cache --evaluate --checkpoint 1r292upg --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 1r292upg --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
 # test new one
-#--no-cache --evaluate --checkpoint XXX --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
+#--no-cache --evaluate --checkpoint 292uxdk3 --optimizer adamw --scheduler constant --scheduler-warmup 0 --num-workers 4 --bin-factor 7 --synthetic-prob 0.0 --eb-prob 0.0 --lc-noise-prob 0.0 --aug-prob 0.0 --data-split 0224_all --model resnet_big --experiment-name train-all --batch-size 256
 
 
 # jan 2024 train all 
