@@ -96,6 +96,12 @@ def parse_args():
     parser.add_argument("--use-ground-truth",
                         action="store_true",
                         help="Fix top volunteer scores with ground truths for training.")
+    parser.add_argument("--use-planets-ground-truth",
+                        action="store_true",
+                        help="Fix volunteer scores with toi and ctoi labels.")
+    parser.add_argument("--use-only-planets",
+                        action="store_true",
+                        help="Use only planets (set volunteer score to 0 if not toi or ctoi) Only works with --use-planets-ground-truth.")
 
     # model config
     parser.add_argument("--model",

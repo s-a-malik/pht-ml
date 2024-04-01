@@ -50,6 +50,8 @@ class LCData(torch.utils.data.Dataset):
         store_cache=True,
         plot_examples=False,
         use_ground_truth=False,
+        use_planets_ground_truth=False,
+        use_only_planets=False,
         seed=1,
         inference_mode=False,
         ):
@@ -60,6 +62,7 @@ class LCData(torch.utils.data.Dataset):
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - vol_negs_only (bool): whether to only use volunteer scores with 0 (used for when training on only synthetic data)
         - lc_noise_prob (float): proportion of data to be noisy via injecting other lcs
         - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
@@ -67,7 +70,9 @@ class LCData(torch.utils.data.Dataset):
         - preprocessing (callable): preprocessing to apply to the data (before caching)
         - store_cache (bool): whether to store all the data in RAM in advance
         - plot_examples (bool): whether to plot the light curves for debugging
-        - use_ground_truth (bool): whether to use ground truth labels to correct volunteer scores
+        - use_ground_truth (bool): whether to use ground truth labels (ctc) to correct volunteer scores
+        - use_planets_ground_truth (bool): whether to use toi and ctoi labels to correct volunteer scores
+        - use_only_planets (bool): whether to use only tois and ctois as labels (no volunteer scores)
         - seed (int): random seed for data splitting if not by sector
         - inference_mode (bool): whether to use the test set for inference only (no labels)
         """
@@ -87,6 +92,8 @@ class LCData(torch.utils.data.Dataset):
         self.preprocessing = preprocessing
         self.plot_examples = plot_examples
         self.use_ground_truth = use_ground_truth
+        self.use_planets_ground_truth = use_planets_ground_truth
+        self.use_only_planets = use_only_planets
         self.seed = seed
         self.inference_mode = inference_mode
         
@@ -136,6 +143,9 @@ class LCData(torch.utils.data.Dataset):
 
             if self.use_ground_truth:
                 self._update_using_ground_truth()
+
+            if self.use_planets_ground_truth:
+                self._update_using_planets_ground_truth()
 
         ##### planetary transits 
         if self.synthetic_prob > 0.0:
@@ -304,6 +314,19 @@ class LCData(torch.utils.data.Dataset):
         # update labels_df
         self.labels_df["maxdb"] = merged_df["maxdb"]
 
+    def _update_using_planets_ground_truth(self):
+        """
+        Updates the labels_df with TOIs and cTOIs ground truth labels
+        """
+        # use ctoi and toi columns to update maxdb column if they are 1
+        self.labels_df["maxdb"] = np.where(
+            (self.labels_df["PHT_ctoi"] == 1) | (self.labels_df["TOI"] == 1), 1, self.labels_df["maxdb"]
+        )
+        # if using only planets, set all other labels to 0
+        if self.use_only_planets:
+            self.labels_df["maxdb"] = np.where(
+                (self.labels_df["PHT_ctoi"] == 0) & (self.labels_df["TOI"] == 0), 0, self.labels_df["maxdb"]
+            )
 
     def _get_eb_data(self):
         """Loads the eclipsing binary data
@@ -630,6 +653,8 @@ def get_data_loaders(args, inference_mode=False):
     data_split = args.data_split
     plot_examples = args.plot_examples
     use_ground_truth = args.use_ground_truth
+    use_planets_ground_truth = args.use_planets_ground_truth
+    use_only_planets = args.use_only_planets
     seed = args.seed
 
     # preprocessing = torchvision.transforms.Compose([
@@ -661,6 +686,8 @@ def get_data_loaders(args, inference_mode=False):
             store_cache=cache,
             plot_examples=plot_examples,
             use_ground_truth=use_ground_truth,
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
             seed=seed,
             inference_mode=True
         )
@@ -718,6 +745,8 @@ def get_data_loaders(args, inference_mode=False):
             store_cache=cache,
             plot_examples=plot_examples,
             use_ground_truth=use_ground_truth,
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
             seed=seed,
         )
 
@@ -737,6 +766,8 @@ def get_data_loaders(args, inference_mode=False):
             store_cache=cache,
             plot_examples=plot_examples,
             use_ground_truth=use_ground_truth,
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
             seed=seed
         )
 
@@ -756,6 +787,8 @@ def get_data_loaders(args, inference_mode=False):
             store_cache=False,  # don't store cache for test set
             plot_examples=plot_examples,
             use_ground_truth=use_ground_truth,  # TODO should really keep this and val as False
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
             seed=seed
         )
 
