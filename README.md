@@ -1,11 +1,10 @@
 # pht-ml
 
-Identify long period exoplanets from TESS light curves using deep learning.
-
+Identify long period exoplanets from TESS light curves using deep learning. See paper for more details.
 
 ## Data
 
-Planet Hunters TESS for soft labels. 
+We use volunteer scores from Planet Hunters TESS as soft labels for training the deep learning models. See `src/data.py` for details.
 
 ### Preprocessing Pipeline
 

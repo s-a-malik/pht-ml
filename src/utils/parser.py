@@ -213,7 +213,7 @@ def parse_args():
     parser.add_argument("--module-test",
                         type=str,
                         default="",
-                        help="test module (dataloader, plot)")
+                        help="test module (dataloader, plot, inference)")
     # plotting args
     parser.add_argument("--binfac", type=int, help="Binning factor", default=-1)
     parser.add_argument("--tic-id", type=int, help="TIC ID", default=-1)

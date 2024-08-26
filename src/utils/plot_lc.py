@@ -1,8 +1,6 @@
 """plot_lc.py
 Most code is adapted from Nora Eisner.
 Saves a plot of the light curve, both raw and rebinned. Saves another plot applying the training transform
-command:
-addqueue -c "plot lcs" -q planet -s ../shell_scripts/plot_lc.sh <SECTOR> <TIC_ID> <BIN_FACTOR>
 """
 
 import os
