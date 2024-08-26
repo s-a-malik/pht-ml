@@ -124,6 +124,9 @@ def plot_lc_test(args):
     sec = args.sec
     seed = args.seed
     path = args.plot_path
+    # make directory if it doesn't exist
+    if not os.path.exists(path):
+        os.makedirs(path)
     # set seed
     np.random.seed(seed)
 
