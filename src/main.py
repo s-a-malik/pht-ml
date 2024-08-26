@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 import torch
-torch.multiprocessing.set_sharing_strategy('file_system')   # fix memory leak?
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 from utils.utils import load_checkpoint, bce_loss_numpy
 from utils.parser import parse_args
@@ -249,7 +249,6 @@ def inference(args):
 
 if __name__ == "__main__":
     args = parse_args()
-    # TODO experiment yaml config file instead?
     print("running on {}".format(args.device))
     print(args)
     if args.module_test == "dataloader":
