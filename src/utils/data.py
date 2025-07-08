@@ -17,6 +17,8 @@ import torchvision
 import numpy as np
 import pandas as pd
 
+from sklearn.model_selection import train_test_split
+
 from astropy.table import Table
 
 if __name__ == "__main__":
@@ -47,6 +49,11 @@ class LCData(torch.utils.data.Dataset):
         preprocessing=None,
         store_cache=True,
         plot_examples=False,
+        use_ground_truth=False,
+        use_planets_ground_truth=False,
+        use_only_planets=False,
+        seed=1,
+        inference_mode=False,
         ):
         """
         Params:
@@ -55,6 +62,7 @@ class LCData(torch.utils.data.Dataset):
         - bin_factor (int): binning factor light curves to use
         - synthetic_prob (float): proportion of data to be synthetic transits
         - eb_prob (float): proportion of data to be synthetic eclipsing binaries
+        - vol_negs_only (bool): whether to only use volunteer scores with 0 (used for when training on only synthetic data)
         - lc_noise_prob (float): proportion of data to be noisy via injecting other lcs
         - min_snr (float): minimum signal-to-noise ratio to include transits
         - single_transit_only (bool): only use single transits in synthetic data
@@ -62,6 +70,11 @@ class LCData(torch.utils.data.Dataset):
         - preprocessing (callable): preprocessing to apply to the data (before caching)
         - store_cache (bool): whether to store all the data in RAM in advance
         - plot_examples (bool): whether to plot the light curves for debugging
+        - use_ground_truth (bool): whether to use ground truth labels (ctc) to correct volunteer scores
+        - use_planets_ground_truth (bool): whether to use toi and ctoi labels to correct volunteer scores
+        - use_only_planets (bool): whether to use only tois and ctois as labels (no volunteer scores)
+        - seed (int): random seed for data splitting if not by sector
+        - inference_mode (bool): whether to use the test set for inference only (no labels)
         """
         super(LCData, self).__init__()
 
@@ -78,6 +91,11 @@ class LCData(torch.utils.data.Dataset):
         self.store_cache = store_cache
         self.preprocessing = preprocessing
         self.plot_examples = plot_examples
+        self.use_ground_truth = use_ground_truth
+        self.use_planets_ground_truth = use_planets_ground_truth
+        self.use_only_planets = use_only_planets
+        self.seed = seed
+        self.inference_mode = inference_mode
         
         self.sectors = get_sectors(self.data_split)
 
@@ -91,23 +109,43 @@ class LCData(torch.utils.data.Dataset):
             print("num. files found: ", len(new_files))
             self.lc_file_list += new_files
         print("total num. LC files found: ", len(self.lc_file_list))
+        # split into train/val/test
+        if "random" in self.data_split:
+            train, test = train_test_split(self.lc_file_list, test_size=0.2, random_state=self.seed)
+            train, val = train_test_split(train, test_size=0.2, random_state=self.seed)
+            if "train" in self.data_split:
+                self.lc_file_list = train
+            elif "val" in self.data_split:
+                self.lc_file_list = val
+            elif "test" in self.data_split:
+                self.lc_file_list = test
+            else:
+                raise ValueError("data_split must contain 'train', 'val', or 'test'")
+            print(f"num. LCs in {self.data_split}: {len(self.lc_file_list)}")
+
 
         ####### Label data
+        if not self.inference_mode:
+            # get all the labels
+            self.labels_df = pd.DataFrame()
+            for sector in self.sectors:
+                self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
+            print("num. total labels (including simulated data): ", len(self.labels_df))
 
-        # get all the labels
-        self.labels_df = pd.DataFrame()
-        for sector in self.sectors:
-            self.labels_df = pd.concat([self.labels_df, pd.read_csv(f"{self.data_root_path}/pht_labels/summary_file_sec{sector}.csv")], axis=0)
-        print("num. total labels (including simulated data): ", len(self.labels_df))
+            # removing simulated data
+            self.labels_df = self.labels_df[~self.labels_df["subject_type"]]
+            print("num. real transits labels: ", len(self.labels_df))
+            # check how many non-zero labels
+            print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
+            print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
+            # zero labels
+            self.zero_tics = self.labels_df[self.labels_df["maxdb"] == 0]["TIC_ID"].tolist()
 
-        # removing simulated data
-        self.labels_df = self.labels_df[~self.labels_df["subject_type"]]
-        print("num. real transits labels: ", len(self.labels_df))
-        # check how many non-zero labels
-        print("num. non-zero labels: ", len(self.labels_df[self.labels_df["maxdb"] != 0.0]))
-        print("strong non-zero labels (score > 0.5): ", len(self.labels_df[self.labels_df["maxdb"] > 0.5]))
-        # zero labels
-        self.zero_tics = self.labels_df[self.labels_df["maxdb"] == 0]["TIC_ID"].tolist()
+            if self.use_ground_truth:
+                self._update_using_ground_truth()
+
+            if self.use_planets_ground_truth:
+                self._update_using_planets_ground_truth()
 
         ##### planetary transits 
         if self.synthetic_prob > 0.0:
@@ -153,9 +191,13 @@ class LCData(torch.utils.data.Dataset):
         """
         # check if we have this data cached
         if idx in self.cache:
-            (x_cache, y_cache) = self.cache[idx]
-            x = deepcopy(x_cache)
-            y = deepcopy(y_cache)
+            if self.inference_mode:
+                x_cache = self.cache[idx]
+                x = deepcopy(x_cache)
+            else:
+                (x_cache, y_cache) = self.cache[idx]
+                x = deepcopy(x_cache)
+                y = deepcopy(y_cache)
         else:
             # get lc file
             lc_file = self.lc_file_list[idx]
@@ -163,14 +205,20 @@ class LCData(torch.utils.data.Dataset):
             # if corrupt return None and skip c.f. collate_fn
             if x["flux"] is None:
                 if self.store_cache:
-                    self.cache[idx] = (x, None)
-                return x, None
+                    self.cache[idx] = x if self.inference_mode else (x, None)
+                if self.inference_mode:
+                    return x
+                else:
+                    return x, None
 
             # if only want zero labels, skip c.f. collate_fn
             if (self.vol_negs_only) and (x["tic"] not in self.zero_tics):
                 if self.store_cache:
-                    self.cache[idx] = (x, None)
-                return x, None
+                    self.cache[idx] =  x if self.inference_mode else (x, None)
+                if self.inference_mode:
+                    return x
+                else:
+                    return x, None
 
             if self.plot_examples:
                 plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_raw_{idx}.png")
@@ -182,19 +230,20 @@ class LCData(torch.utils.data.Dataset):
                     plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_preprocessed_{idx}.png")
 
             # get labels for this lc file (if exists), match sector 
-            y_row = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"])]
-            if len(y_row) == 1:
-                y = torch.tensor(y_row["maxdb"].values[0], dtype=torch.float)
-                x["toi"] = y_row["TOI"].values[0]
-                x["tce"] = y_row["TCE"].values[0]
-                x["ctc"] = y_row["PHT_ctc"].values[0]
-                x["ctoi"] = y_row["PHT_ctoi"].values[0]
-            else:
-                y = None
+            if not self.inference_mode:
+                y_row = self.labels_df.loc[(self.labels_df["TIC_ID"] == x["tic"]) & (self.labels_df["sector"] == x["sec"])]
+                if len(y_row) == 1:
+                    y = torch.tensor(y_row["maxdb"].values[0], dtype=torch.float)
+                    x["toi"] = y_row["TOI"].values[0]
+                    x["tce"] = y_row["TCE"].values[0]
+                    x["ctc"] = y_row["PHT_ctc"].values[0]
+                    x["ctoi"] = y_row["PHT_ctoi"].values[0]
+                else:
+                    y = None
             
             if self.store_cache:
                 # add to cache 
-                self.cache[idx] = (deepcopy(x), deepcopy(y))
+                self.cache[idx] = deepcopy(x) if self.inference_mode else (deepcopy(x), deepcopy(y))
 
         # probabilistically add synthetic transits, only if labels are zero.
         rand_num = np.random.rand()
@@ -218,7 +267,10 @@ class LCData(torch.utils.data.Dataset):
 
         # if transit additions failed, return None
         if x["flux"] is None:
-            return x, None
+            if self.inference_mode:
+                return x
+            else:
+                return x, None
 
         if (self.plot_examples) and (x["tic_inj"] != -1):
             plot_lc(x["flux"], save_path=f"/mnt/zfsusers/shreshth/pht_project/data/examples/test_dataloader_injected_{idx}.png")
@@ -234,10 +286,47 @@ class LCData(torch.utils.data.Dataset):
         if self.transform:
             x["flux"] = self.transform(x["flux"])
             if self.plot_examples:
-                plot_lc(x["flux"], save_path=f"./data/examples/test_dataloader_transformed_{idx}.png")
 
-        return x, y
+        if self.inference_mode:
+            return x
+        else:
+            return x, y
 
+
+    def _update_using_ground_truth(self):
+        """
+        Updates the labels_df with ground truth labels
+        """
+        # load ground truth labels
+        gt_files = glob(f"{self.data_root_path}/top_500_labels/all_ground_truth*.csv")
+        print(f"found {len(gt_files)} ground truth files")
+        # add all ground truth labels to one df
+        gt_df = pd.concat([pd.read_csv(gt_file) for gt_file in gt_files])
+        print(f"loaded {len(gt_df)} ground truth labels")
+        merged_df = self.labels_df.merge(gt_df, on=["TIC_ID", "sector"], how="left")
+        merged_df["maxdb"] = np.where(
+            (merged_df["final_score"] == "planet"), 1, 
+            np.where((merged_df["final_score"] == "EB") | (merged_df["final_score"] == "other"), 0, merged_df["maxdb"])
+        )
+        self.labels_df.reset_index(drop=True, inplace=True)
+        merged_df.reset_index(drop=True, inplace=True)
+        print(f"updated {len(merged_df[merged_df['maxdb'] != self.labels_df['maxdb']])} labels")
+        # update labels_df
+        self.labels_df["maxdb"] = merged_df["maxdb"]
+
+    def _update_using_planets_ground_truth(self):
+        """
+        Updates the labels_df with TOIs and cTOIs ground truth labels
+        """
+        # use ctoi and toi columns to update maxdb column if they are 1
+        self.labels_df["maxdb"] = np.where(
+            (self.labels_df["PHT_ctoi"] == 1) | (self.labels_df["TOI"] == 1), 1, self.labels_df["maxdb"]
+        )
+        # if using only planets, set all other labels to 0
+        if self.use_only_planets:
+            self.labels_df["maxdb"] = np.where(
+                (self.labels_df["PHT_ctoi"] == 0) & (self.labels_df["TOI"] == 0), 0, self.labels_df["maxdb"]
+            )
 
     def _get_eb_data(self):
         """Loads the eclipsing binary data
@@ -528,9 +617,17 @@ def collate_fn(batch):
     batch = [(x,y) for (x,y) in batch if y is not None]           # filter on missing labels
     return torch.utils.data.dataloader.default_collate(batch)
 
+def collate_fn_inference(batch):
+    """Collate function for filtering out corrupted data in the dataset
+    Assumes that missing data are NoneType
+    """
+    batch = [x for x in batch if x["flux"] is not None]   # filter on missing flux 
+    return torch.utils.data.dataloader.default_collate(batch)
+
         
-def get_data_loaders(args):
-    """Get data loaders given argparse arguments
+def get_data_loaders(args, inference_mode=False):
+    """Get data loaders given argparse arguments.
+    inference_only (bool): whether to use the test set for inference only (no labels)
     """
     # unpack arguments
     data_root_path = args.data_path
@@ -555,6 +652,10 @@ def get_data_loaders(args):
     pin_memory = True
     data_split = args.data_split
     plot_examples = args.plot_examples
+    use_ground_truth = args.use_ground_truth
+    use_planets_ground_truth = args.use_planets_ground_truth
+    use_only_planets = args.use_only_planets
+    seed = args.seed
 
     # preprocessing = torchvision.transforms.Compose([
     #     # transforms.RemoveOutliersPercent(percent_change=0.15),
@@ -562,109 +663,159 @@ def get_data_loaders(args):
     # ])
     preprocessing = None
 
-    # composed transform
-    training_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
-        transforms.MedianAtZero(),
-        transforms.MirrorFlip(prob=aug_prob),
-        transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
-        transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
-        transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length),
-        transforms.ToFloatTensor()
-    ])
+    if inference_mode:
+        test_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
+        test_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"inference_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=0.0,
+            eb_prob=0.0,
+            vol_negs_only=False,
+            lc_noise_prob=0.0,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=test_transform,
+            preprocessing=preprocessing,
+            store_cache=cache,
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
+            seed=seed,
+            inference_mode=True
+        )
+        test_dataloader = torch.utils.data.DataLoader(test_set,
+                                            batch_size=batch_size,
+                                            shuffle=False,
+                                            num_workers=num_workers,
+                                            pin_memory=pin_memory,
+                                            collate_fn=collate_fn_inference)
+        print(f'Size of test set: {len(test_set)}')
 
-    # test tranforms - do not randomly delete or permute
-    val_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
-        transforms.MedianAtZero(),
-        transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length),
-        transforms.ToFloatTensor()
-    ])
+        return test_dataloader
+    else:
+        # composed transform
+        training_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.MirrorFlip(prob=aug_prob),
+            transforms.RandomDelete(prob=aug_prob, delete_fraction=delete_fraction),
+            transforms.RandomShift(prob=aug_prob, permute_fraction=permute_fraction),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
 
-    test_transform = torchvision.transforms.Compose([
-        transforms.NormaliseFlux(),
-        transforms.MedianAtZero(),
-        transforms.ImputeNans(method="zero"),
-        transforms.Cutoff(length=max_lc_length),
-        transforms.ToFloatTensor()
-    ])
+        # test tranforms - do not randomly delete or permute
+        val_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
 
-    train_set = LCData(
-        data_root_path=data_root_path,
-        data_split=f"train_{data_split}",
-        bin_factor=bin_factor,
-        synthetic_prob=synthetic_prob,
-        eb_prob=eb_prob,
-        vol_negs_only=vol_negs_only,
-        lc_noise_prob=lc_noise_prob,
-        min_snr=min_snr,
-        single_transit_only=not multi_transit,
-        transform=training_transform,
-        preprocessing=preprocessing,
-        store_cache=cache,
-        plot_examples=plot_examples
-    )
+        test_transform = torchvision.transforms.Compose([
+            transforms.NormaliseFlux(),
+            transforms.MedianAtZero(),
+            transforms.ImputeNans(method="zero"),
+            transforms.Cutoff(length=max_lc_length),
+            transforms.ToFloatTensor()
+        ])
 
-    # same amount of synthetics in val set as in train set
-    val_set = LCData(
-        data_root_path=data_root_path,
-        data_split=f"val_{data_split}",
-        bin_factor=bin_factor,
-        synthetic_prob=synthetic_prob,
-        eb_prob=eb_prob,
-        vol_negs_only=False,
-        lc_noise_prob=0.0,
-        min_snr=min_snr,
-        single_transit_only=not multi_transit,
-        transform=val_transform,
-        preprocessing=preprocessing,
-        store_cache=cache,
-        plot_examples=plot_examples
-    )
+        train_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"train_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=synthetic_prob,
+            eb_prob=eb_prob,
+            vol_negs_only=vol_negs_only,
+            lc_noise_prob=lc_noise_prob,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=training_transform,
+            preprocessing=preprocessing,
+            store_cache=cache,
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
+            seed=seed,
+        )
 
-    # no synthetics in test set
-    test_set = LCData(
-        data_root_path=data_root_path,
-        data_split=f"test_{data_split}",
-        bin_factor=bin_factor,
-        synthetic_prob=synthetic_prob if test_synths else 0.0,
-        eb_prob=eb_prob if test_synths else 0.0,
-        vol_negs_only=False,
-        lc_noise_prob=0.0,
-        min_snr=min_snr,
-        single_transit_only=not multi_transit,
-        transform=test_transform,
-        preprocessing=preprocessing,
-        store_cache=cache,
-        plot_examples=plot_examples
-    )
+        # same amount of synthetics in val set as in train set
+        val_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"val_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=synthetic_prob,
+            eb_prob=eb_prob,
+            vol_negs_only=False,
+            lc_noise_prob=0.0,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=val_transform,
+            preprocessing=preprocessing,
+            store_cache=cache,
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
+            seed=seed
+        )
 
-    print(f'Size of training set: {len(train_set)}')
-    print(f'Size of val set: {len(val_set)}')
-    print(f'Size of test set: {len(test_set)}')
+        # no synthetics in test set
+        test_set = LCData(
+            data_root_path=data_root_path,
+            data_split=f"test_{data_split}",
+            bin_factor=bin_factor,
+            synthetic_prob=synthetic_prob if test_synths else 0.0,
+            eb_prob=eb_prob if test_synths else 0.0,
+            vol_negs_only=False,
+            lc_noise_prob=0.0,
+            min_snr=min_snr,
+            single_transit_only=not multi_transit,
+            transform=test_transform,
+            preprocessing=preprocessing,
+            store_cache=False,  # don't store cache for test set
+            plot_examples=plot_examples,
+            use_ground_truth=use_ground_truth,  # TODO should really keep this and val as False
+            use_planets_ground_truth=use_planets_ground_truth,
+            use_only_planets=use_only_planets,
+            seed=seed
+        )
 
-    train_dataloader = torch.utils.data.DataLoader(train_set,
-                                                batch_size=batch_size,
-                                                shuffle=True,
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
-    val_dataloader = torch.utils.data.DataLoader(val_set,
-                                                batch_size=batch_size,
-                                                shuffle=True,               # shuffle val set as well to get different batches for prediction saving
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
-    test_dataloader = torch.utils.data.DataLoader(test_set,
-                                                batch_size=batch_size,
-                                                shuffle=False,
-                                                num_workers=num_workers,
-                                                pin_memory=pin_memory,
-                                                collate_fn=collate_fn)
+        train_dataloader = torch.utils.data.DataLoader(train_set,
+                                                    batch_size=batch_size,
+                                                    shuffle=True,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    collate_fn=collate_fn)
+        val_dataloader = torch.utils.data.DataLoader(val_set,
+                                                    batch_size=batch_size,
+                                                    shuffle=True,               # shuffle val set as well to get different batches for prediction saving
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    collate_fn=collate_fn)
+        test_dataloader = torch.utils.data.DataLoader(test_set,
+                                                    batch_size=batch_size,
+                                                    shuffle=False,
+                                                    num_workers=num_workers,
+                                                    pin_memory=pin_memory,
+                                                    collate_fn=collate_fn)
+        
+        print(f'Size of training set: {len(train_set)}')
+        print(f'Size of val set: {len(val_set)}')
+        print(f'Size of test set: {len(test_set)}')
 
-    return train_dataloader, val_dataloader, test_dataloader
+        return train_dataloader, val_dataloader, test_dataloader
 
 
 def test_dataloader(args):
@@ -717,6 +868,7 @@ if __name__ == "__main__":
     ap.add_argument("--multi-transit", action="store_true")
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--plot-examples", action="store_true")
+    ap.add_argument("--use-ground-truth", action="store_true")
     args = ap.parse_args()
 
-    test_dataloader()
+    test_dataloader(args)

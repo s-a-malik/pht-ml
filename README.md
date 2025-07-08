@@ -2,7 +2,9 @@
 
 This repository contains code to train machine learning models to classify planetary transits from TESS light curves.
 
-The code in this repository was used in the Neurips 2022 workshop paper *Discovering Long-period Exoplanets using Deep Learning with Citizen Science Labels*, Shreshth A. Malik, Nora L. Eisner, Chris J. Lintott, Yarin Gal. ([Arxiv](https://arxiv.org/abs/2211.06903)).
+The code in this repository was used in the paper: Malik, S. A., Eisner, N. L., Mason, I. R., Platymesi, S., Aigrain, S., Roberts, S. J., Gal, Y. & Lintott, C. J. (2025). Accelerating Long-period Exoplanet Discovery by Combining Deep Learning and Citizen Science. The Astronomical Journal, 170(1), 39. [DOI](https://doi.org/10.3847/1538-3881/add46d).
+
+A snapshot of the code for publication is available on [Zenodo](https://zenodo.org/records/13377155).
 
 ## Data
 
@@ -28,18 +30,27 @@ Install the requirements, and login to wandb (for logging): `pip install -r requ
 
 All experimental conditions and hyperparameters are set via command line arguments (for example, you can vary the proportion of synthetic data used to train the network). Use `python src/main.py` to run an experiment.
 
+
 ## Cite
 
 If you found our work useful, please consider citing:
 
 ```
-@article{malik2022discovering,
-  title={Discovering Long-period Exoplanets using Deep Learning with Citizen Science Labels},
-  author={Malik, Shreshth A and Eisner, Nora L and Lintott, Chris J and Gal, Yarin},
-  journal={arXiv preprint arXiv:2211.06903},
-  year={2022}
+@article{Malik_2025,
+doi = {10.3847/1538-3881/add46d},
+url = {https://dx.doi.org/10.3847/1538-3881/add46d},
+year = {2025},
+month = {jun},
+publisher = {The American Astronomical Society},
+volume = {170},
+number = {1},
+pages = {39},
+author = {Malik, Shreshth A. and Eisner, Nora L. and Mason, Ian R. and Platymesi, Sofia and Aigrain, Suzanne and Roberts, Stephen J. and Gal, Yarin and Lintott, Chris J.},
+title = {Accelerating Long-period Exoplanet Discovery by Combining Deep Learning and Citizen Science},
+journal = {The Astronomical Journal},
 }
 ```
+
 
 ## Disclaimer
 

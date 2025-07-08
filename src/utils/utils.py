@@ -16,21 +16,50 @@ import numpy as np
 
 import torch
 
-TRAIN_SECTORS_DEBUG = [10]
-TRAIN_SECTORS_STANDARD = [10,11,12,13,14,15,16,17,18,19,20]
-TRAIN_SECTORS_FULL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
-TRAIN_SECTORS_ALL = [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29]
-
-# keep validation and test sets the same
-VAL_SECTORS_DEBUG = [12]
-VAL_SECTORS_STANDARD = [30,31,32,33,34,35]
-VAL_SECTORS_FULL = [30,31,32,33,34,35]
-VAL_SECTORS_ALL = [30,31,32,33,34,35]
-
-TEST_SECTORS_DEBUG = [14]
-TEST_SECTORS_STANDARD = [36,37,38]
-TEST_SECTORS_FULL = [36,37,38]
-TEST_SECTORS_ALL = [36,37,38,39,40,41,42,43]
+SECTOR_MAPPING = {
+    "train_standard": [10,11,12,13,14,15,16,17,18,19,20],
+    "val_standard": [30,31,32,33,34,35],
+    "test_standard": [36,37,38],
+    "train_full": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
+    "val_full": [30,31,32,33,34,35],
+    "test_full": [36,37,38],
+    "train_debug": [10],
+    "val_debug": [12],
+    "test_debug": [14],
+    "train_all": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29],
+    "val_all": [30,31,32,33,34,35],
+    "test_all": [36,37,38,39,40,41,42,43],
+    "train_new": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37],
+    "val_new": [38,39,40,41,42,43],
+    "test_new": [44,45,47,48,49,50,53,54],
+    "train_1123_all": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43],
+    "val_1123_all": [44,45,47,48,49,50,53],
+    "test_1123_all": [54],
+    "train_0124_all": [20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,47,48,49,50,53,54,55,56,57],
+    "val_0124_all": [58,59,60,61,62,63,64],
+    "test_0124_all": [65],
+    "train_0124_all_old": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,47,48,49,50,53,54,55,56,57],
+    "val_0124_all_old": [58,59,60,61,62,63,64],
+    "test_0124_all_old": [65],
+    "train_0224_all": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44],
+    "val_0224_all": [45,47,48,49,50,53,54],
+    "test_0224_all": [55,56,57,58,59,60,61,62,63,64,65],
+    "train_y1": [14,15,16,17,18,19,20,21,22,23,24,25,26],
+    "val_y1":  [27,28,29,30,31,32,33,34,35,36,37,38,39],
+    "test_y1": [40,41,42,43,44,45,47,48,49,50,53,54],   # note 46, 51, 52 are missing
+    "train_y2": [27,28,29,30,31,32,33,34,35,36,37,38,39],
+    "val_y2": [40,41,42,43,44,45,47,48,49,50,53,54],
+    "test_y2": [14,15,16,17,18,19,20,21,22,23,24,25,26],
+    "train_y3":  [40,41,42,43,44,45,47,48,49,50,53,54],
+    "val_y3": [14,15,16,17,18,19,20,21,22,23,24,25,26],
+    "test_y3": [27,28,29,30,31,32,33,34,35,36,37,38,39],
+    "train_random_all": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43],
+    "val_random_all": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43],
+    "test_random_all": [10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43],
+    "inference_55": [55],   # no labels
+    "inference_54": [54],   # no labels
+    "inference_55_56_57": [55,56,57],   # no labels
+}
 
 SHORTEST_LC = 17500 # from sector 10-38. Used to trim all the data to the same length.
 
@@ -52,23 +81,43 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def load_checkpoint(model, optimizer, device, checkpoint_file: str):
+def get_sectors(data_split):
+    """
+    Params:
+    - data_split (str): data split to use (train_debug, val_standard etc.)
+    Returns:
+    - sectors (list): list of sectors
+    """
+    if data_split in SECTOR_MAPPING:
+        return SECTOR_MAPPING[data_split]
+    else:
+        raise ValueError(f"Invalid data split {data_split}")
+
+
+def load_checkpoint(model, optimizer, scheduler, device, checkpoint_file: str):
     """Loads a model checkpoint.
     Params:
     - model (nn.Module): initialised model
     - optimizer (nn.optim): initialised optimizer
+    - scheduler (nn.optim.lr_scheduler): initialised scheduler
     - device (torch.device): device model is on
     Returns:
     - model with loaded state dict
     - optimizer with loaded state dict
+    - scheduler with loaded state dict
+    - epoch (int): epoch checkpoint was saved at
+    - best_loss (float): best loss seen so far
     """
     checkpoint = torch.load(checkpoint_file, map_location=device)
     model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
+    if checkpoint.get("scheduler", None) is not None:
+        scheduler.load_state_dict(checkpoint["scheduler"])
+    if checkpoint.get("optimizer", None) is not None:
+        optimizer.load_state_dict(checkpoint["optimizer"])
     print(f"Loaded {checkpoint_file}, "
           f"trained to epoch {checkpoint['epoch']+1} with best loss {checkpoint['best_loss']}")
 
-    return model, optimizer, checkpoint["epoch"]+1, checkpoint["best_loss"]
+    return model, optimizer, scheduler, checkpoint["epoch"]+1, checkpoint["best_loss"]
 
 
 def save_checkpoint(checkpoint_dict: dict, is_best: bool):
@@ -288,38 +337,3 @@ def read_lc_csv(lc_file):
         # print("failed to read file: ", lc_file)
         x = {"flux": None}
     return x
-
-
-def get_sectors(data_split):
-    """
-    Params:
-    - data_split (str): data split to use (train_debug, val_standard etc.)
-    Returns:
-    - sectors (list): list of sectors
-    """
-    if data_split == "train_standard":
-        return TRAIN_SECTORS_STANDARD
-    elif data_split == "val_standard":
-        return VAL_SECTORS_STANDARD
-    elif data_split == "test_standard":
-        return TEST_SECTORS_STANDARD
-    if data_split == "train_full":
-        return TRAIN_SECTORS_FULL
-    elif data_split == "val_full":
-        return VAL_SECTORS_FULL
-    elif data_split == "test_full":
-        return TEST_SECTORS_FULL
-    elif data_split == "train_debug":
-        return TRAIN_SECTORS_DEBUG
-    elif data_split == "val_debug":
-        return VAL_SECTORS_DEBUG
-    elif data_split == "test_debug":
-        return TEST_SECTORS_DEBUG
-    elif data_split == "train_all":
-        return TRAIN_SECTORS_ALL
-    elif data_split == "val_all":
-        return VAL_SECTORS_ALL
-    elif data_split == "test_all":
-        return TEST_SECTORS_ALL
-    else:
-        raise ValueError(f"Invalid data split {data_split}")

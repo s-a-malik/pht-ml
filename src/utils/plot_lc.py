@@ -1,6 +1,5 @@
 """plot_lc.py
 Saves a plot of the light curve, both raw and rebinned. Saves another plot applying the training transform
-command:
 """
 
 import os
@@ -122,6 +121,9 @@ def plot_lc_test(args):
     sec = args.sec
     seed = args.seed
     path = args.plot_path
+    # make directory if it doesn't exist
+    if not os.path.exists(path):
+        os.makedirs(path)
     # set seed
     np.random.seed(seed)
 

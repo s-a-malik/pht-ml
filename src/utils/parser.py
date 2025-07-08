@@ -92,6 +92,15 @@ def parse_args():
     parser.add_argument("--plot-examples",
                         action="store_true",
                         help="plot examples from dataloader for debugging (only used for test dataloader)")
+    parser.add_argument("--use-ground-truth",
+                        action="store_true",
+                        help="Fix top volunteer scores with ground truths for training.")
+    parser.add_argument("--use-planets-ground-truth",
+                        action="store_true",
+                        help="Fix volunteer scores with toi and ctoi labels.")
+    parser.add_argument("--use-only-planets",
+                        action="store_true",
+                        help="Use only planets (set volunteer score to 0 if not toi or ctoi) Only works with --use-planets-ground-truth.")
 
     # model config
     parser.add_argument("--model",
@@ -125,6 +134,13 @@ def parse_args():
                         type=str,
                         default="adamw",
                         help="optimizer (adam, sgd, adamw)")
+    parser.add_argument("--scheduler",
+                        type=str,
+                        default="constant")
+    parser.add_argument("--scheduler-warmup",
+                        type=int,
+                        default=0,
+                        help="Number of epochs for linear warmup of learning rate.")
     parser.add_argument("--loss",
                         type=str,
                         default="BCE",
@@ -196,7 +212,7 @@ def parse_args():
     parser.add_argument("--module-test",
                         type=str,
                         default="",
-                        help="test module (dataloader, plot)")
+                        help="test module (dataloader, plot, inference)")
     # plotting args
     parser.add_argument("--binfac", type=int, help="Binning factor", default=-1)
     parser.add_argument("--tic-id", type=int, help="TIC ID", default=-1)
